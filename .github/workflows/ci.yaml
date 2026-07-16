@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  call-reusable:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      security-events: write
+    uses: zylos-platform/zylos-service-parent/.github/workflows/reusable-build-and-publish.yaml@main
+    with:
+      service-name: zylos-service-cart
+      java-version: "25"
+      coverage-threshold: "0.0"
+      open-deploy-pr: false
+    secrets:
+      GITOPS_REPO_TOKEN: ${{ secrets.GITOPS_REPO_PAT }}
