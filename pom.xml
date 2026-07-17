@@ -14,7 +14,7 @@
   <packaging>jar</packaging>
 
   <name>zylos-service-cart</name>
-  <description>Shopping cart bounded context (read-heavy showcase)</description>
+  <description>Shopping cart bounded context (write-heavy showcase)</description>
 
   <url/>
   <licenses>
