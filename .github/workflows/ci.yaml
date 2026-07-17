@@ -21,7 +21,7 @@ jobs:
     with:
       service-name: zylos-service-cart
       java-version: "25"
-      coverage-threshold: "0.0"
+      coverage-threshold: "0.70"
       open-deploy-pr: false
     secrets:
       GITOPS_REPO_TOKEN: ${{ secrets.GITOPS_REPO_PAT }}
