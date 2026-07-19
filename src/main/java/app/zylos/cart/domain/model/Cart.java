@@ -37,6 +37,7 @@ public final class Cart {
     private @Nullable String convertedOrderId;
     private @Nullable CartId mergedIntoCartId;
     private long version;
+    private final long baseVersion;
 
     private Cart(
             CartId id,
@@ -56,6 +57,7 @@ public final class Cart {
         this.convertedOrderId = convertedOrderId;
         this.mergedIntoCartId = mergedIntoCartId;
         this.version = version;
+        this.baseVersion = version;
     }
 
     /**
@@ -233,6 +235,15 @@ public final class Cart {
 
     public long version() {
         return version;
+    }
+
+    /**
+     * The version at which this aggregate was loaded (or 0 for a never-persisted cart). The
+     * persistence adapter conditions its write on this value for optimistic concurrency; commands do
+     * not change it. An aggregate instance is saved at most once per unit of work.
+     */
+    public long baseVersion() {
+        return baseVersion;
     }
 
     public @Nullable String convertedOrderId() {

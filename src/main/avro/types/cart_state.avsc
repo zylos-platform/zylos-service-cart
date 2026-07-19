@@ -1,0 +1,75 @@
+{
+  "type": "record",
+  "name": "CartState",
+  "namespace": "app.zylos.contracts.cart.v1",
+  "doc": "Full event-carried state-transfer (ECST) snapshot of a Cart aggregate, emitted on every state change. Consumers apply last-writer-wins using 'version'. The cart is a durable statement of intent, not a pricing or inventory authority: line prices are advisory and re-quoted at Checkout.",
+  "fields": [
+    {
+      "name": "cartId",
+      "type": "string"
+    },
+    {
+      "name": "owner",
+      "type": "app.zylos.contracts.cart.v1.CartOwner"
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "doc": "ACTIVE | CONVERTED | MERGED. Abandonment and expiry are derived downstream, not aggregate states."
+    },
+    {
+      "name": "currency",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "ISO 4217 code. Single-currency-per-cart invariant, set by the first line. Null when the cart has no lines."
+    },
+    {
+      "name": "lines",
+      "type": {
+        "type": "array",
+        "items": "app.zylos.contracts.cart.v1.CartLine"
+      },
+      "default": []
+    },
+    {
+      "name": "version",
+      "type": "long",
+      "doc": "Monotonic aggregate version; optimistic-concurrency guard and LWW projection key."
+    },
+    {
+      "name": "createdAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "updatedAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "convertedOrderId",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "Set when status=CONVERTED; the Order this cart became."
+    },
+    {
+      "name": "mergedIntoCartId",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "Set when status=MERGED; the customer cart this guest cart merged into."
+    }
+  ]
+}

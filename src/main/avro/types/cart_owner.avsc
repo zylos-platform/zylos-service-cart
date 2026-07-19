@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "CartOwner",
+  "namespace": "app.zylos.contracts.cart.v1",
+  "doc": "Identifies who owns a cart. ownerType is a string tag (CUSTOMER|GUEST) rather than an Avro enum, to avoid enum-evolution hazards and to match the project's status-as-string convention. ownerId mirrors the JWT 'sub' subject shape: a Keycloak subject for CUSTOMER, a guest UUIDv7 for GUEST.",
+  "fields": [
+    {
+      "name": "ownerType",
+      "type": "string",
+      "doc": "CUSTOMER | GUEST."
+    },
+    {
+      "name": "ownerId",
+      "type": "string",
+      "doc": "Subject identifier of the owning principal."
+    }
+  ]
+}
