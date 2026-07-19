@@ -1,3 +1,17 @@
 spring:
   application:
     name: zylos-service-cart
+
+zylos:
+  kafka:
+    schema-registry-url: ${SCHEMA_REGISTRY_URL:http://schema-registry.zylos-data-kafka.svc.cluster.local:8081}
+    auto-register-schemas: true
+  cart:
+    event-topic: cart.cart.events.v1
+  dynamodb:
+    table-name: zylos-cart
+    endpoint: ${DYNAMODB_ENDPOINT:http://dynamodb-local.zylos-data-dynamodb.svc.cluster.local:8000}
+  aws:
+    region: ${AWS_REGION:us-east-1}
+  service:
+    version: ${SERVICE_VERSION:0.0.0}

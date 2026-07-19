@@ -1,0 +1,18 @@
+{
+    "type": "record",
+    "name": "Money",
+    "namespace": "app.zylos.contracts.common.v1",
+    "doc": "Monetary amount in exact integer minor units (e.g. cents) to avoid floating-point error. Shared across bounded contexts.",
+    "fields": [
+        {
+            "name": "currency",
+            "type": "string",
+            "doc": "ISO 4217 currency code, e.g. 'USD'."
+        },
+        {
+            "name": "minorUnits",
+            "type": "long",
+            "doc": "Amount in the currency's minor unit. 1099 = USD 10.99."
+        }
+    ]
+}

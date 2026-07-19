@@ -1,0 +1,18 @@
+{
+    "type": "record",
+    "name": "Producer",
+    "namespace": "app.zylos.contracts.common.v1",
+    "doc": "Identifies the service and version that emitted an event. Shared envelope sub-record.",
+    "fields": [
+        {
+            "name": "service",
+            "type": "string",
+            "doc": "Emitting service, e.g. 'zylos-service-catalog'."
+        },
+        {
+            "name": "version",
+            "type": "string",
+            "doc": "Emitting service version, e.g. '1.4.2'."
+        }
+    ]
+}

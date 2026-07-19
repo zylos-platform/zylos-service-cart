@@ -1,0 +1,60 @@
+{
+  "type": "record",
+  "name": "CartEvent",
+  "namespace": "app.zylos.contracts.cart.v1",
+  "doc": "Envelope for every cart event. eventType discriminates the cause; payload is the full ECST cart snapshot. One schema per topic (TopicNameStrategy), registered against two subjects: 'cart.cart.events.v1-value' (retained funnel log) and 'cart.cart.snapshot.v1-value' (compacted latest-state). eventType is one of: CartLineAdded, CartLineQuantityChanged, CartLineRemoved, CartCleared, CartMerged, CartConverted, CartExpired.",
+  "fields": [
+    {
+      "name": "eventId",
+      "type": "string"
+    },
+    {
+      "name": "eventType",
+      "type": "string"
+    },
+    {
+      "name": "eventVersion",
+      "type": "int",
+      "default": 1
+    },
+    {
+      "name": "aggregateId",
+      "type": "string"
+    },
+    {
+      "name": "aggregateType",
+      "type": "string"
+    },
+    {
+      "name": "occurredAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "correlationId",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "causationId",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "producer",
+      "type": "app.zylos.contracts.common.v1.Producer"
+    },
+    {
+      "name": "payload",
+      "type": "app.zylos.contracts.cart.v1.CartState"
+    }
+  ]
+}

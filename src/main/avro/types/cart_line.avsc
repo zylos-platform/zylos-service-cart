@@ -1,0 +1,75 @@
+{
+  "type": "record",
+  "name": "CartLine",
+  "namespace": "app.zylos.contracts.cart.v1",
+  "doc": "One line in a cart, identified by SKU. Price fields are an ADVISORY snapshot captured from Catalog at add/refresh time; they are non-authoritative by contract and are re-quoted at Checkout. Under degraded-accept (Catalog unavailable) unitPrice/sellerId/catalogVersion may be null and lineOrigin is VALIDATION_PENDING.",
+  "fields": [
+    {
+      "name": "sku",
+      "type": "string",
+      "doc": "Line identity within the cart. Adding an existing SKU increments quantity."
+    },
+    {
+      "name": "quantity",
+      "type": "int",
+      "doc": "1..MAX_PER_LINE."
+    },
+    {
+      "name": "unitPrice",
+      "type": [
+        "null",
+        "app.zylos.contracts.common.v1.Money"
+      ],
+      "default": null,
+      "doc": "Advisory unit-price snapshot. Null when captured under degraded-accept."
+    },
+    {
+      "name": "priceCapturedAt",
+      "type": [
+        "null",
+        {
+          "type": "long",
+          "logicalType": "timestamp-millis"
+        }
+      ],
+      "default": null,
+      "doc": "When the price snapshot was captured."
+    },
+    {
+      "name": "catalogVersion",
+      "type": [
+        "null",
+        "long"
+      ],
+      "default": null,
+      "doc": "Catalog aggregate version the snapshot was taken from; enables staleness checks at Checkout."
+    },
+    {
+      "name": "sellerId",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "Owning seller, snapshotted from Catalog. Null under degraded-accept."
+    },
+    {
+      "name": "lineOrigin",
+      "type": "string",
+      "default": "VALIDATED",
+      "doc": "VALIDATED | VALIDATION_PENDING. PENDING lines are validated lazily on read and authoritatively at Checkout."
+    },
+    {
+      "name": "addedAt",
+      "type": [
+        "null",
+        {
+          "type": "long",
+          "logicalType": "timestamp-millis"
+        }
+      ],
+      "default": null,
+      "doc": "When the line was first added. Optional: the domain does not track per-line add time; derive from the CartLineAdded event stream when needed."
+    }
+  ]
+}
