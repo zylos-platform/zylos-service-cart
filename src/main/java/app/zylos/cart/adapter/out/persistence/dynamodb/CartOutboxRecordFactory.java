@@ -37,7 +37,7 @@ import software.amazon.awssdk.core.SdkBytes;
 @Component
 public class CartOutboxRecordFactory {
 
-    static final int OUTBOX_SHARDS = 16;
+    public static final int OUTBOX_SHARDS = 16;
     private static final String AGGREGATE_TYPE = "cart";
     private static final int EVENT_SCHEMA_VERSION = 1;
 
@@ -122,6 +122,9 @@ public class CartOutboxRecordFactory {
                     .occurredAt(occurredAt)
                     .terminal(event instanceof CartConverted)
                     .payload(encode(envelope))
+                .gsi3pk("PENDING#" + shard)
+                .gsi3sk(eventId)
+                .status("PENDING")
                     .build());
         }
         return records;
