@@ -1,8 +1,17 @@
 package app.zylos.cart.adapter.out.relay;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+
+import org.springframework.stereotype.Component;
+
 import app.zylos.cart.adapter.out.persistence.dynamodb.CartTableSchemas;
 import app.zylos.cart.adapter.out.persistence.dynamodb.OutboxRecordItem;
-import org.springframework.stereotype.Component;
+
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbIndex;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
@@ -11,13 +20,6 @@ import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
-
-import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 
 @Component
 public class OutboxStore {
@@ -32,10 +34,10 @@ public class OutboxStore {
     private final DynamoDbIndex<OutboxRecordItem> pendingIndex;
 
     public OutboxStore(
-        DynamoDbClient dynamoDbClient,
-        DynamoDbEnhancedClient enhancedClient,
-        DynamoDbAsyncClient asyncClient,
-        ZylosDynamodbProperties dynamoDbProperties) {
+            DynamoDbClient dynamoDbClient,
+            DynamoDbEnhancedClient enhancedClient,
+            DynamoDbAsyncClient asyncClient,
+            ZylosDynamodbProperties dynamoDbProperties) {
         this.client = dynamoDbClient;
         this.asyncClient = asyncClient;
         this.outboxTable = enhancedClient.table(dynamoDbProperties.tableName(), CartTableSchemas.OUTBOX);
@@ -56,17 +58,17 @@ public class OutboxStore {
 
         try {
             client.updateItem(UpdateItemRequest.builder()
-                .tableName(outboxTable.tableName())
-                .key(Map.of("PK", str(pk), "SK", str(pk)))
-                .updateExpression("SET #owner = :owner, leaseExpiresAt = :exp, entityType = :etype")
-                .conditionExpression("attribute_not_exists(PK) OR leaseExpiresAt < :now")
-                .expressionAttributeNames(Map.of("#owner", "owner"))
-                .expressionAttributeValues(Map.of(
-                    ":owner", str(owner),
-                    ":exp", num(expiresAt.toEpochMilli()),
-                    ":now", num(now.toEpochMilli()),
-                    ":etype", str("RelayLease")))
-                .build());
+                    .tableName(outboxTable.tableName())
+                    .key(Map.of("PK", str(pk), "SK", str(pk)))
+                    .updateExpression("SET #owner = :owner, leaseExpiresAt = :exp, entityType = :etype")
+                    .conditionExpression("attribute_not_exists(PK) OR leaseExpiresAt < :now")
+                    .expressionAttributeNames(Map.of("#owner", "owner"))
+                    .expressionAttributeValues(Map.of(
+                            ":owner", str(owner),
+                            ":exp", num(expiresAt.toEpochMilli()),
+                            ":now", num(now.toEpochMilli()),
+                            ":etype", str("RelayLease")))
+                    .build());
             return Optional.of(new RelayLease(shard, owner, expiresAt));
         } catch (ConditionalCheckFailedException e) {
             return Optional.empty();
@@ -80,13 +82,14 @@ public class OutboxStore {
 
         try {
             client.updateItem(UpdateItemRequest.builder()
-                .tableName(outboxTable.tableName())
-                .key(Map.of("PK", str(pk), "SK", str(pk)))
-                .updateExpression("SET leaseExpiresAt = :exp")
-                .conditionExpression("#owner = :owner")
-                .expressionAttributeNames(Map.of("#owner", "owner"))
-                .expressionAttributeValues(Map.of(":owner", str(lease.owner()), ":exp", num(expiresAt.toEpochMilli())))
-                .build());
+                    .tableName(outboxTable.tableName())
+                    .key(Map.of("PK", str(pk), "SK", str(pk)))
+                    .updateExpression("SET leaseExpiresAt = :exp")
+                    .conditionExpression("#owner = :owner")
+                    .expressionAttributeNames(Map.of("#owner", "owner"))
+                    .expressionAttributeValues(
+                            Map.of(":owner", str(lease.owner()), ":exp", num(expiresAt.toEpochMilli())))
+                    .build());
             return Optional.of(new RelayLease(lease.shard(), lease.owner(), expiresAt));
         } catch (ConditionalCheckFailedException _) {
             return Optional.empty();
@@ -98,12 +101,12 @@ public class OutboxStore {
 
         try {
             client.deleteItem(DeleteItemRequest.builder()
-                .tableName(outboxTable.tableName())
-                .key(Map.of("PK", str(pk), "SK", str(pk)))
-                .conditionExpression("#owner = :owner")
-                .expressionAttributeNames(Map.of("#owner", "owner"))
-                .expressionAttributeValues(Map.of(":owner", str(lease.owner())))
-                .build());
+                    .tableName(outboxTable.tableName())
+                    .key(Map.of("PK", str(pk), "SK", str(pk)))
+                    .conditionExpression("#owner = :owner")
+                    .expressionAttributeNames(Map.of("#owner", "owner"))
+                    .expressionAttributeValues(Map.of(":owner", str(lease.owner())))
+                    .build());
         } catch (ConditionalCheckFailedException _) {
             // Lost the lease already; nothing to release.
         }
@@ -117,12 +120,12 @@ public class OutboxStore {
      * next cycle. Sub-second, and harmless for an outbox.
      */
     public List<OutboxRecordItem> readPending(int shard, int limit) {
-        QueryConditional byShard =
-            QueryConditional.keyEqualTo(Key.builder().partitionValue(OUTBOX_PENDING_PREFIX + shard).build());
+        QueryConditional byShard = QueryConditional.keyEqualTo(
+                Key.builder().partitionValue(OUTBOX_PENDING_PREFIX + shard).build());
         return pendingIndex.query(r -> r.queryConditional(byShard).limit(limit)).stream()
-            .flatMap(page -> page.items().stream())
-            .limit(limit)
-            .toList();
+                .flatMap(page -> page.items().stream())
+                .limit(limit)
+                .toList();
     }
 
     /**
@@ -130,49 +133,52 @@ public class OutboxStore {
      * and sets {@code expiresAt} so TTL reclaims the item later. Deliberately not delete — that is
      * what accumulates deleted-item history in the hot partition.
      */
-    public void markPublished(OutboxRecordItem item, Duration retention, Instant now) {
-        client.updateItem(UpdateItemRequest.builder()
-            .tableName(outboxTable.tableName())
-            .key(Map.of("PK", str(item.pk()), "SK", str(item.sk())))
-            .updateExpression("REMOVE GSI3PK, GSI3SK, #status SET expiresAt = :exp")
-            .conditionExpression("attribute_exists(PK)")
-            .expressionAttributeNames(Map.of("#status", "status"))
-            .expressionAttributeValues(Map.of(":exp", num(now.plus(retention).getEpochSecond())))
-            .build());
+    public CompletableFuture<UpdateItemResponse> markPublishedAsync(
+            OutboxRecordItem item, Duration retention, Instant now) {
+        return asyncClient.updateItem(UpdateItemRequest.builder()
+                .tableName(outboxTable.tableName())
+                .key(Map.of("PK", str(item.pk()), "SK", str(item.sk())))
+                .updateExpression("REMOVE GSI3PK, GSI3SK, #status SET expiresAt = :exp")
+                .conditionExpression("attribute_exists(PK)")
+                .expressionAttributeNames(Map.of("#status", "status"))
+                .expressionAttributeValues(
+                        Map.of(":exp", num(now.plus(retention).getEpochSecond())))
+                .build());
     }
 
-    public CompletableFuture<UpdateItemResponse> markPublishedAsync(OutboxRecordItem item, Duration retention, Instant now) {
-        return asyncClient.updateItem(UpdateItemRequest.builder()
-            .tableName(outboxTable.tableName())
-            .key(Map.of("PK", str(item.pk()), "SK", str(item.sk())))
-            .updateExpression("REMOVE GSI3PK, GSI3SK, #status SET expiresAt = :exp")
-            .conditionExpression("attribute_exists(PK)")
-            .expressionAttributeNames(Map.of("#status", "status"))
-            .expressionAttributeValues(Map.of(":exp", num(now.plus(retention).getEpochSecond())))
-            .build());
+    public void markPublished(OutboxRecordItem item, Duration retention, Instant now) {
+        client.updateItem(UpdateItemRequest.builder()
+                .tableName(outboxTable.tableName())
+                .key(Map.of("PK", str(item.pk()), "SK", str(item.sk())))
+                .updateExpression("REMOVE GSI3PK, GSI3SK, #status SET expiresAt = :exp")
+                .conditionExpression("attribute_exists(PK)")
+                .expressionAttributeNames(Map.of("#status", "status"))
+                .expressionAttributeValues(
+                        Map.of(":exp", num(now.plus(retention).getEpochSecond())))
+                .build());
     }
 
     /** Moves a poison record to the shard's dead-letter partition and clears it from the index. */
     public void moveToDlq(OutboxRecordItem item, Duration retention, Instant now) {
         OutboxRecordItem dead = OutboxRecordItem.builder()
-            .pk(OUTBOX_DLQ_PREFIX + item.shardId())
-            .sk(item.sk())
-            .entityType("OutboxDlq")
-            .shardId(item.shardId())
-            .outboxId(item.outboxId())
-            .eventId(item.eventId())
-            .eventType(item.eventType())
-            .aggregateId(item.aggregateId())
-            .aggregateType(item.aggregateType())
-            .cartId(item.cartId())
-            .occurredAt(item.occurredAt())
-            .terminal(item.terminal())
-            .payload(item.payload())
-            .gsi3pk(null)
-            .gsi3sk(null)
-            .status("DEAD")
-            .expiresAt(null) // poison is retained for investigation
-            .build();
+                .pk(OUTBOX_DLQ_PREFIX + item.shardId())
+                .sk(item.sk())
+                .entityType("OutboxDlq")
+                .shardId(item.shardId())
+                .outboxId(item.outboxId())
+                .eventId(item.eventId())
+                .eventType(item.eventType())
+                .aggregateId(item.aggregateId())
+                .aggregateType(item.aggregateType())
+                .cartId(item.cartId())
+                .occurredAt(item.occurredAt())
+                .terminal(item.terminal())
+                .payload(item.payload())
+                .gsi3pk(null)
+                .gsi3sk(null)
+                .status("DEAD")
+                .expiresAt(null) // poison is retained for investigation
+                .build();
         outboxTable.putItem(dead);
         markPublished(item, retention, now);
     }

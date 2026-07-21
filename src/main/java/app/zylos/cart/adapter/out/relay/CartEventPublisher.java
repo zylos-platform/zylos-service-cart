@@ -1,19 +1,22 @@
 package app.zylos.cart.adapter.out.relay;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.errors.InvalidProducerEpochException;
+import org.apache.kafka.common.errors.ProducerFencedException;
+import org.springframework.stereotype.Component;
+
 import app.zylos.cart.config.ZylosCartProperties;
 import app.zylos.contracts.cart.v1.CartEvent;
+
 import io.confluent.kafka.serializers.KafkaAvroSerializer;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.errors.ProducerFencedException;
-import org.springframework.stereotype.Component;
-
-import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
 
 /**
  * Publishes one decoded cart event to both topics from the same outbox record: full ECST state to the
@@ -30,22 +33,22 @@ public class CartEventPublisher {
     private final Timer eventAge;
 
     public CartEventPublisher(
-        ShardProducerRegistry producers,
-        KafkaAvroSerializer cartEventAvroSerializer,
-        ZylosCartProperties cartProperties,
-        MeterRegistry registry) {
+            ShardProducerRegistry producers,
+            KafkaAvroSerializer cartEventAvroSerializer,
+            ZylosCartProperties cartProperties,
+            MeterRegistry registry) {
         this.producers = producers;
         this.serializer = cartEventAvroSerializer;
         this.cartProperties = cartProperties;
         this.published = Counter.builder("zylos.cart.relay.published")
-            .description("Cart events published to Kafka by the outbox relay")
-            .register(registry);
+                .description("Cart events published to Kafka by the outbox relay")
+                .register(registry);
         this.aborted = Counter.builder("zylos.cart.relay.transactions.aborted")
-            .description("Relay transactions aborted (lease expiry or send failure)")
-            .register(registry);
+                .description("Relay transactions aborted (lease expiry or send failure)")
+                .register(registry);
         this.eventAge = Timer.builder("zylos.cart.relay.event.age")
-            .description("Age of a cart event at publish time (write-to-publish lag)")
-            .register(registry);
+                .description("Age of a cart event at publish time (write-to-publish lag)")
+                .register(registry);
     }
 
     public int publishBatch(int shard, List<PendingEvent> batch, BatchGuard guard) {
@@ -81,7 +84,7 @@ public class CartEventPublisher {
             }
 
             producer.commitTransaction();
-        } catch (ProducerFencedException fenced) {
+        } catch (ProducerFencedException | InvalidProducerEpochException fenced) {
             // Epoch lost: the transaction is already void and this producer is unusable.
             producers.evict(shard);
             aborted.increment();
@@ -124,6 +127,5 @@ public class CartEventPublisher {
     /**
      * One event decoded from its outbox record, ready to publish.
      */
-    public record PendingEvent(String cartId, CartEvent envelope, boolean terminal, Instant occurredAt) {
-    }
+    public record PendingEvent(String cartId, CartEvent envelope, boolean terminal, Instant occurredAt) {}
 }

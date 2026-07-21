@@ -1,18 +1,5 @@
 package app.zylos.cart.adapter.out.relay;
 
-import app.zylos.cart.adapter.out.persistence.dynamodb.CartOutboxRecordFactory;
-import app.zylos.cart.adapter.out.persistence.dynamodb.OutboxRecordItem;
-import app.zylos.cart.config.ZylosCartProperties;
-import app.zylos.contracts.cart.v1.CartEvent;
-import com.github.f4b6a3.uuid.UuidCreator;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
-import software.amazon.awssdk.services.dynamodb.model.UpdateItemResponse;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -21,6 +8,22 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import com.github.f4b6a3.uuid.UuidCreator;
+
+import app.zylos.cart.adapter.out.persistence.dynamodb.CartOutboxRecordFactory;
+import app.zylos.cart.adapter.out.persistence.dynamodb.OutboxRecordItem;
+import app.zylos.cart.config.ZylosCartProperties;
+import app.zylos.contracts.cart.v1.CartEvent;
+
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemResponse;
 
 /**
  * Sharded polling-publisher relay. Each cycle, for every shard, it
@@ -57,27 +60,27 @@ public class OutboxRelay {
     private final Counter leaseLost;
 
     public OutboxRelay(
-        OutboxStore store,
-        CartEventPublisher publisher,
-        ZylosCartProperties cartProperties,
-        MeterRegistry registry) {
+            OutboxStore store,
+            CartEventPublisher publisher,
+            ZylosCartProperties cartProperties,
+            MeterRegistry registry) {
         this.store = store;
         this.publisher = publisher;
         this.cartProperties = cartProperties;
         this.instanceId = UuidCreator.getTimeOrderedEpoch().toString();
         this.shardOffset = Math.floorMod(instanceId.hashCode(), SHARDS);
         this.poisoned = Counter.builder("zylos.cart.relay.poisoned")
-            .description("Undecodable outbox records moved to the DLQ")
-            .register(registry);
+                .description("Undecodable outbox records moved to the DLQ")
+                .register(registry);
         this.publishErrors = Counter.builder("zylos.cart.relay.errors")
-            .description("Transient publish failures; the record is retried")
-            .register(registry);
+                .description("Transient publish failures; the record is retried")
+                .register(registry);
         this.fenced = Counter.builder("zylos.cart.relay.fenced")
-            .description("Shards abandoned because this instance lost the producer epoch")
-            .register(registry);
+                .description("Shards abandoned because this instance lost the producer epoch")
+                .register(registry);
         this.leaseLost = Counter.builder("zylos.cart.relay.lease.lost")
-            .description("Batches abandoned because the lease expired or was taken over")
-            .register(registry);
+                .description("Batches abandoned because the lease expired or was taken over")
+                .register(registry);
     }
 
     @Scheduled(fixedDelayString = "${zylos.cart.relay.poll-interval-ms:1000}")
@@ -96,8 +99,8 @@ public class OutboxRelay {
         for (int i = 0; i < SHARDS; i++) {
             int shard = (shardOffset + i) % SHARDS;
 
-            Optional<RelayLease> claimed =
-                store.tryAcquireLease(shard, instanceId, Duration.ofSeconds(cartProperties.relay().leaseTtlSeconds()), Instant.now());
+            Optional<RelayLease> claimed = store.tryAcquireLease(
+                    shard, instanceId, Duration.ofSeconds(cartProperties.relay().leaseTtlSeconds()), Instant.now());
 
             if (claimed.isEmpty()) {
                 continue;
@@ -120,7 +123,8 @@ public class OutboxRelay {
 
     public int drainShard(RelayLease lease) {
         int shard = lease.shard();
-        List<OutboxRecordItem> batch = store.readPending(shard, cartProperties.relay().batchSize());
+        List<OutboxRecordItem> batch =
+                store.readPending(shard, cartProperties.relay().batchSize());
 
         if (batch.isEmpty()) {
             return 0;
@@ -140,7 +144,8 @@ public class OutboxRelay {
             try {
                 CartEvent envelope = CartEvent.fromByteBuffer(item.payload().asByteBuffer());
                 records.add(item);
-                events.add(new CartEventPublisher.PendingEvent(item.cartId(), envelope, item.terminal(), item.occurredAt()));
+                events.add(new CartEventPublisher.PendingEvent(
+                        item.cartId(), envelope, item.terminal(), item.occurredAt()));
             } catch (Exception decodeFailure) {
                 log.error("Poison outbox record {} on shard {} -> DLQ", item.outboxId(), shard, decodeFailure);
                 store.moveToDlq(item, Duration.ofHours(cartProperties.relay().publishedRetentionHours()), decodedAt);
@@ -159,16 +164,18 @@ public class OutboxRelay {
         List<CompletableFuture<UpdateItemResponse>> updateFutures = new ArrayList<>(committed);
 
         for (int i = 0; i < committed; i++) {
-            updateFutures.add(
-                store.markPublishedAsync(records.get(i), Duration.ofHours(cartProperties.relay().publishedRetentionHours()), markedAt)
-            );
+            updateFutures.add(store.markPublishedAsync(
+                    records.get(i), Duration.ofHours(cartProperties.relay().publishedRetentionHours()), markedAt));
         }
 
         try {
-            CompletableFuture.allOf(updateFutures.toArray(CompletableFuture<?>[]::new)).join();
+            CompletableFuture.allOf(updateFutures.toArray(CompletableFuture<?>[]::new))
+                    .join();
         } catch (CompletionException e) {
             // A partial failure happened.
-            log.warn("Failed to mark some records as published. They will remain in the GSI and be redelivered next cycle.", e);
+            log.warn(
+                    "Failed to mark some records as published. They will remain in the GSI and be redelivered next cycle.",
+                    e);
         }
 
         return committed;
@@ -183,7 +190,8 @@ public class OutboxRelay {
         Instant now = Instant.now();
 
         if (sentSoFar > 0 && sentSoFar % cartProperties.relay().leaseRenewEveryRecords() == 0) {
-            Optional<RelayLease> renewed = store.renewLease(lease, Duration.ofSeconds(cartProperties.relay().leaseTtlSeconds()), now);
+            Optional<RelayLease> renewed = store.renewLease(
+                    lease, Duration.ofSeconds(cartProperties.relay().leaseTtlSeconds()), now);
 
             if (renewed.isEmpty()) {
                 leaseLost.increment();

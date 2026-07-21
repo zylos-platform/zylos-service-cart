@@ -3,6 +3,7 @@ package app.zylos.cart.adapter.out.persistence.dynamodb;
 import java.time.Instant;
 
 import jakarta.annotation.Nullable;
+
 import software.amazon.awssdk.core.SdkBytes;
 
 /**
@@ -153,8 +154,7 @@ public record OutboxRecordItem(
                     gsi3pk,
                     gsi3sk,
                     status,
-                    expiresAt
-                );
+                    expiresAt);
         }
     }
 }

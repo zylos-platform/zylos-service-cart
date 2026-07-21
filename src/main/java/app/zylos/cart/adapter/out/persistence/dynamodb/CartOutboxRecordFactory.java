@@ -122,9 +122,9 @@ public class CartOutboxRecordFactory {
                     .occurredAt(occurredAt)
                     .terminal(event instanceof CartConverted)
                     .payload(encode(envelope))
-                .gsi3pk("PENDING#" + shard)
-                .gsi3sk(eventId)
-                .status("PENDING")
+                    .gsi3pk("PENDING#" + shard)
+                    .gsi3sk(eventId)
+                    .status("PENDING")
                     .build());
         }
         return records;

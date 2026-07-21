@@ -1,16 +1,16 @@
 package app.zylos.cart.adapter.out.relay;
 
-import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
-import io.confluent.kafka.serializers.KafkaAvroSerializer;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
+import io.confluent.kafka.serializers.KafkaAvroSerializer;
+
 @Configuration(proxyBeanMethods = false)
 public class CartAvroSerializationConfig {
-
 
     @Bean
     KafkaAvroSerializer cartEventAvroSerializer(ZylosKafkaProperties kafkaProperties) {

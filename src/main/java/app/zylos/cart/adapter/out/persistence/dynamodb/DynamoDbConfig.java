@@ -49,14 +49,14 @@ public class DynamoDbConfig {
 
     @Bean
     DynamoDbAsyncClient dynamoDbAsyncClient(
-        @Value("${zylos.dynamodb.endpoint:}") String endpoint,
-        @Value("${zylos.aws.region:us-east-1}") String region) {
+            @Value("${zylos.dynamodb.endpoint:}") String endpoint,
+            @Value("${zylos.aws.region:us-east-1}") String region) {
         DynamoDbAsyncClientBuilder builder = DynamoDbAsyncClient.builder().region(Region.of(region));
 
         if (StringUtils.hasText(endpoint)) {
             builder.endpointOverride(URI.create(endpoint))
-                .credentialsProvider(
-                    StaticCredentialsProvider.create(AwsBasicCredentials.create("local", "local")));
+                    .credentialsProvider(
+                            StaticCredentialsProvider.create(AwsBasicCredentials.create("local", "local")));
         } else {
             builder.credentialsProvider(DefaultCredentialsProvider.builder().build());
         }
@@ -65,6 +65,8 @@ public class DynamoDbConfig {
 
     @Bean
     DynamoDbEnhancedAsyncClient dynamoDbEnhancedAsyncClient(DynamoDbAsyncClient dynamoDbAsyncClient) {
-        return DynamoDbEnhancedAsyncClient.builder().dynamoDbClient(dynamoDbAsyncClient).build();
+        return DynamoDbEnhancedAsyncClient.builder()
+                .dynamoDbClient(dynamoDbAsyncClient)
+                .build();
     }
 }

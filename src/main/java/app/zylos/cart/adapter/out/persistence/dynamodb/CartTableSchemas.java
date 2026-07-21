@@ -187,20 +187,28 @@ public final class CartTableSchemas {
                             a -> a.name("payload")
                                     .getter(OutboxRecordItem::payload)
                                     .setter(OutboxRecordItem.Builder::payload))
-                .addAttribute(String.class, a -> a.name("GSI3PK")
-                    .getter(OutboxRecordItem::gsi3pk)
-                    .setter(OutboxRecordItem.Builder::gsi3pk)
-                    .tags(StaticAttributeTags.secondaryPartitionKey(GSI3_OUTBOX_PENDING)))
-                .addAttribute(String.class, a -> a.name("GSI3SK")
-                    .getter(OutboxRecordItem::gsi3sk)
-                    .setter(OutboxRecordItem.Builder::gsi3sk)
-                    .tags(StaticAttributeTags.secondarySortKey(GSI3_OUTBOX_PENDING)))
-                .addAttribute(String.class, a -> a.name("status")
-                    .getter(OutboxRecordItem::status)
-                    .setter(OutboxRecordItem.Builder::status))
-                .addAttribute(Long.class, a -> a.name("expiresAt")
-                    .getter(OutboxRecordItem::expiresAt)
-                    .setter(OutboxRecordItem.Builder::expiresAt))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("GSI3PK")
+                                    .getter(OutboxRecordItem::gsi3pk)
+                                    .setter(OutboxRecordItem.Builder::gsi3pk)
+                                    .tags(StaticAttributeTags.secondaryPartitionKey(GSI3_OUTBOX_PENDING)))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("GSI3SK")
+                                    .getter(OutboxRecordItem::gsi3sk)
+                                    .setter(OutboxRecordItem.Builder::gsi3sk)
+                                    .tags(StaticAttributeTags.secondarySortKey(GSI3_OUTBOX_PENDING)))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("status")
+                                    .getter(OutboxRecordItem::status)
+                                    .setter(OutboxRecordItem.Builder::status))
+                    .addAttribute(
+                            Long.class,
+                            a -> a.name("expiresAt")
+                                    .getter(OutboxRecordItem::expiresAt)
+                                    .setter(OutboxRecordItem.Builder::expiresAt))
                     .build();
 
     private CartTableSchemas() {}

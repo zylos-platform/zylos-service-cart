@@ -1,7 +1,11 @@
 package app.zylos.cart.adapter.out.relay;
 
-import app.zylos.cart.config.ZylosCartProperties;
+import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import jakarta.annotation.PreDestroy;
+
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -12,9 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import app.zylos.cart.config.ZylosCartProperties;
 
 /**
  * Owns one transactional Kafka producer per outbox shard, keyed by a shard-scoped
@@ -41,7 +43,8 @@ public class ShardProducerRegistry {
         // The broker aborts a transaction that outlives this; it must comfortably exceed the worst-case
         // batch duration or the coordinator will abort a batch we are still legitimately sending.
         ZylosCartProperties.Relay relay = cartProperties.relay();
-        this.transactionTimeoutMs = (int) Math.min(840_000L, relay.sendTimeoutSeconds() * 1000L * relay.batchSize() + 60_000L);
+        this.transactionTimeoutMs =
+                (int) Math.min(840_000L, relay.sendTimeoutSeconds() * 1000L * relay.batchSize() + 60_000L);
     }
 
     /**
@@ -68,14 +71,22 @@ public class ShardProducerRegistry {
 
     private Producer<String, byte[]> createAndInit(int shard) {
         Map<String, Object> config = Map.of(
-            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
-            ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
-            ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class,
-            ProducerConfig.ACKS_CONFIG, "all",
-            ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true,
-            ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 5,
-            ProducerConfig.TRANSACTIONAL_ID_CONFIG, "cart-relay-shard-" + shard,
-            ProducerConfig.TRANSACTION_TIMEOUT_CONFIG, transactionTimeoutMs);
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
+                bootstrapServers,
+                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
+                StringSerializer.class,
+                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                ByteArraySerializer.class,
+                ProducerConfig.ACKS_CONFIG,
+                "all",
+                ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG,
+                true,
+                ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION,
+                5,
+                ProducerConfig.TRANSACTIONAL_ID_CONFIG,
+                "cart-relay-shard-" + shard,
+                ProducerConfig.TRANSACTION_TIMEOUT_CONFIG,
+                transactionTimeoutMs);
 
         Producer<String, byte[]> producer = new KafkaProducer<>(config);
         producer.initTransactions();
