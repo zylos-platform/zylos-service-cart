@@ -10,8 +10,11 @@ import org.springframework.util.StringUtils;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 
@@ -42,5 +45,28 @@ public class DynamoDbConfig {
     @Bean
     DynamoDbEnhancedClient dynamoDbEnhancedClient(DynamoDbClient dynamoDbClient) {
         return DynamoDbEnhancedClient.builder().dynamoDbClient(dynamoDbClient).build();
+    }
+
+    @Bean
+    DynamoDbAsyncClient dynamoDbAsyncClient(
+            @Value("${zylos.dynamodb.endpoint:}") String endpoint,
+            @Value("${zylos.aws.region:us-east-1}") String region) {
+        DynamoDbAsyncClientBuilder builder = DynamoDbAsyncClient.builder().region(Region.of(region));
+
+        if (StringUtils.hasText(endpoint)) {
+            builder.endpointOverride(URI.create(endpoint))
+                    .credentialsProvider(
+                            StaticCredentialsProvider.create(AwsBasicCredentials.create("local", "local")));
+        } else {
+            builder.credentialsProvider(DefaultCredentialsProvider.builder().build());
+        }
+        return builder.build();
+    }
+
+    @Bean
+    DynamoDbEnhancedAsyncClient dynamoDbEnhancedAsyncClient(DynamoDbAsyncClient dynamoDbAsyncClient) {
+        return DynamoDbEnhancedAsyncClient.builder()
+                .dynamoDbClient(dynamoDbAsyncClient)
+                .build();
     }
 }

@@ -2,6 +2,8 @@ package app.zylos.cart.adapter.out.persistence.dynamodb;
 
 import java.time.Instant;
 
+import jakarta.annotation.Nullable;
+
 import software.amazon.awssdk.core.SdkBytes;
 
 /**
@@ -20,7 +22,11 @@ public record OutboxRecordItem(
         String cartId,
         Instant occurredAt,
         boolean terminal,
-        SdkBytes payload) {
+        SdkBytes payload,
+        @Nullable String gsi3pk,
+        @Nullable String gsi3sk,
+        @Nullable String status,
+        @Nullable Long expiresAt) {
 
     public static Builder builder() {
         return new Builder();
@@ -40,6 +46,10 @@ public record OutboxRecordItem(
         private Instant occurredAt;
         private boolean terminal;
         private SdkBytes payload;
+        private @Nullable String gsi3pk;
+        private @Nullable String gsi3sk;
+        private @Nullable String status;
+        private @Nullable Long expiresAt;
 
         public Builder pk(String pk) {
             this.pk = pk;
@@ -106,6 +116,26 @@ public record OutboxRecordItem(
             return this;
         }
 
+        public Builder gsi3pk(@Nullable String gsi3pk) {
+            this.gsi3pk = gsi3pk;
+            return this;
+        }
+
+        public Builder gsi3sk(@Nullable String gsi3sk) {
+            this.gsi3sk = gsi3sk;
+            return this;
+        }
+
+        public Builder status(@Nullable String status) {
+            this.status = status;
+            return this;
+        }
+
+        public Builder expiresAt(@Nullable Long expiresAt) {
+            this.expiresAt = expiresAt;
+            return this;
+        }
+
         public OutboxRecordItem build() {
             return new OutboxRecordItem(
                     pk,
@@ -120,7 +150,11 @@ public record OutboxRecordItem(
                     cartId,
                     occurredAt,
                     terminal,
-                    payload);
+                    payload,
+                    gsi3pk,
+                    gsi3sk,
+                    status,
+                    expiresAt);
         }
     }
 }

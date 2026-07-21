@@ -7,9 +7,10 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.StaticImmutableTableSchem
 /**
  * Enhanced-client schemas for the heterogeneous single-table design (two item types, one table).
  */
-final class CartTableSchemas {
+public final class CartTableSchemas {
 
     static final String GSI1_OWNER = "GSI1-owner";
+    public static final String GSI3_OUTBOX_PENDING = "GSI3-outbox-pending";
 
     static final StaticImmutableTableSchema<CartLineItem, CartLineItem.Builder> LINE =
             StaticImmutableTableSchema.builder(CartLineItem.class, CartLineItem.Builder.class)
@@ -116,7 +117,7 @@ final class CartTableSchemas {
                     a -> a.name("expiresAt").getter(CartItem::expiresAt).setter(CartItem.Builder::expiresAt))
             .build();
 
-    static final StaticImmutableTableSchema<OutboxRecordItem, OutboxRecordItem.Builder> OUTBOX =
+    public static final StaticImmutableTableSchema<OutboxRecordItem, OutboxRecordItem.Builder> OUTBOX =
             StaticImmutableTableSchema.builder(OutboxRecordItem.class, OutboxRecordItem.Builder.class)
                     .newItemBuilder(OutboxRecordItem::builder, OutboxRecordItem.Builder::build)
                     .addAttribute(
@@ -186,6 +187,28 @@ final class CartTableSchemas {
                             a -> a.name("payload")
                                     .getter(OutboxRecordItem::payload)
                                     .setter(OutboxRecordItem.Builder::payload))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("GSI3PK")
+                                    .getter(OutboxRecordItem::gsi3pk)
+                                    .setter(OutboxRecordItem.Builder::gsi3pk)
+                                    .tags(StaticAttributeTags.secondaryPartitionKey(GSI3_OUTBOX_PENDING)))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("GSI3SK")
+                                    .getter(OutboxRecordItem::gsi3sk)
+                                    .setter(OutboxRecordItem.Builder::gsi3sk)
+                                    .tags(StaticAttributeTags.secondarySortKey(GSI3_OUTBOX_PENDING)))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("status")
+                                    .getter(OutboxRecordItem::status)
+                                    .setter(OutboxRecordItem.Builder::status))
+                    .addAttribute(
+                            Long.class,
+                            a -> a.name("expiresAt")
+                                    .getter(OutboxRecordItem::expiresAt)
+                                    .setter(OutboxRecordItem.Builder::expiresAt))
                     .build();
 
     private CartTableSchemas() {}

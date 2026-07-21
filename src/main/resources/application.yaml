@@ -1,16 +1,30 @@
 spring:
   application:
     name: zylos-service-cart
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+  threads:
+    virtual:
+      enabled: true
 
 zylos:
   kafka:
-    schema-registry-url: ${SCHEMA_REGISTRY_URL:http://schema-registry.zylos-data-kafka.svc.cluster.local:8081}
-    auto-register-schemas: true
+    schema-registry-url: ${SCHEMA_REGISTRY_URL}
+    auto-register-schemas: ${SCHEMA_AUTO_REGISTER:true}
   cart:
-    event-topic: cart.cart.events.v1
+    events-topic: cart.cart.events.v1
+    snapshot-topic: cart.cart.snapshot.v1
+    relay:
+      poll-interval-ms: 1000
+      batch-size: 100
+      lease-ttl-seconds: 30
+      lease-safety-margin-ms: 5000
+      lease-renew-every-records: 20
+      send-timeout-seconds: 10
+      published-retention-hours: 24
   dynamodb:
     table-name: zylos-cart
-    endpoint: ${DYNAMODB_ENDPOINT:http://dynamodb-local.zylos-data-dynamodb.svc.cluster.local:8000}
+    endpoint: ${DYNAMODB_ENDPOINT}
   aws:
     region: ${AWS_REGION:us-east-1}
   service:
