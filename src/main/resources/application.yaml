@@ -1,13 +1,52 @@
 spring:
   application:
     name: zylos-service-cart
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
   threads:
     virtual:
       enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+  grpc:
+    client:
+      channel:
+        catalog:
+          target: ${CATALOG_GRPC_ADDRESS}
+  data:
+    redis:
+      host: ${VALKEY_HOST}
+      port: ${VALKEY_PORT}
+      password: ${ZYLOS_VALKEY_PASSWORD}
+  security:
+    oauth2:
+      client:
+        registration:
+          zylos-internal:
+            client-id: ${S2S_CLIENT_ID:zylos-internal}
+            client-secret: ${S2S_CLIENT_SECRET}
+            authorization-grant-type: client_credentials
+            provider: keycloak
+        provider:
+          keycloak:
+            token-uri: ${KEYCLOAK_TOKEN_URI}
 
 zylos:
+  catalog:
+    grpc:
+      deadline-ms: 150
+      s2s-registration-id: "zylos-internal"
+    cache:
+      key-prefix: "cart:catalog:sku:"
+      found-fresh-seconds: 90
+      found-hard-seconds: 86400
+      negative-fresh-seconds: 10
+      negative-hard-seconds: 60
+    resilience:
+      cb-failure-rate-threshold: 50
+      cb-sliding-window: 20
+      cb-wait-open-seconds: 5
+      bulkhead-max-concurrent: 32
+      retry-max-attempts: 2
+      retry-base-ms: 50
   kafka:
     schema-registry-url: ${SCHEMA_REGISTRY_URL}
     auto-register-schemas: ${SCHEMA_AUTO_REGISTER:true}
