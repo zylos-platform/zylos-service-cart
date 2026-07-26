@@ -11,12 +11,15 @@ import app.zylos.cart.application.port.out.CartRepository;
 import app.zylos.cart.application.port.out.OptimisticConcurrencyException;
 import app.zylos.cart.domain.event.DomainEvent;
 import app.zylos.cart.domain.model.Cart;
+import app.zylos.cart.domain.model.CartOwner;
+import app.zylos.cart.domain.model.CartStatus;
 import app.zylos.cart.domain.vo.CartId;
 
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Expression;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
+import software.amazon.awssdk.enhanced.dynamodb.model.TransactDeleteItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactPutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactWriteItemsEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -35,6 +38,7 @@ public class DynamoCartRepository implements CartRepository {
 
     private final DynamoDbTable<CartItem> cartTable;
     private final DynamoDbTable<OutboxRecordItem> outboxTable;
+    private final DynamoDbTable<ActiveCartPointerItem> activeCartPointerTable;
     private final DynamoDbEnhancedClient enhancedClient;
     private final CartOutboxRecordFactory outboxFactory;
 
@@ -46,6 +50,7 @@ public class DynamoCartRepository implements CartRepository {
         this.outboxFactory = outboxFactory;
         this.cartTable = enhancedClient.table(tableName, CartTableSchemas.CART);
         this.outboxTable = enhancedClient.table(tableName, CartTableSchemas.OUTBOX);
+        this.activeCartPointerTable = enhancedClient.table(tableName, CartTableSchemas.ACTIVE_CART_POINTER);
     }
 
     private static Expression versionGuard(long baseVersion) {
@@ -73,6 +78,11 @@ public class DynamoCartRepository implements CartRepository {
         return false;
     }
 
+    private static String pointerPk(CartOwner owner) {
+        String ownerType = owner instanceof CartOwner.CustomerOwner ? "CUSTOMER" : "GUEST";
+        return "OWNER#" + ownerType + "#" + owner.subjectId() + "#ACTIVE";
+    }
+
     @Override
     public void save(Cart cart) {
         Instant now = Instant.now();
@@ -89,6 +99,32 @@ public class DynamoCartRepository implements CartRepository {
                         .build());
         for (OutboxRecordItem outboxItem : outboxItems) {
             tx.addPutItem(outboxTable, outboxItem);
+        }
+
+        if (cart.baseVersion() == 0L) {
+            String ownerPointerId = pointerPk(cart.owner());
+            tx.addPutItem(
+                    activeCartPointerTable,
+                    TransactPutItemEnhancedRequest.builder(ActiveCartPointerItem.class)
+                            .item(new ActiveCartPointerItem(
+                                    ownerPointerId,
+                                    ownerPointerId,
+                                    cart.id().value().toString()))
+                            .conditionExpression(Expression.builder()
+                                    .expression("attribute_not_exists(#pk)")
+                                    .putExpressionName("#pk", "PK")
+                                    .build())
+                            .build());
+        } else if (cart.status() != CartStatus.ACTIVE) {
+            String ownerPointerId = pointerPk(cart.owner());
+            tx.addDeleteItem(
+                    activeCartPointerTable,
+                    TransactDeleteItemEnhancedRequest.builder()
+                            .key(Key.builder()
+                                    .partitionValue(ownerPointerId)
+                                    .sortValue(ownerPointerId)
+                                    .build())
+                            .build());
         }
 
         try {
@@ -110,5 +146,19 @@ public class DynamoCartRepository implements CartRepository {
         CartItem item =
                 cartTable.getItem(Key.builder().partitionValue(pk).sortValue(pk).build());
         return Optional.of(item).map(CartItemMapper::toDomain);
+    }
+
+    @Override
+    public Optional<Cart> findActiveByOwner(CartOwner owner) {
+        String ownerPointerId = pointerPk(owner);
+        ActiveCartPointerItem pointer = activeCartPointerTable.getItem(Key.builder()
+                .partitionValue(ownerPointerId)
+                .sortValue(ownerPointerId)
+                .build());
+
+        if (pointer == null) {
+            return Optional.empty();
+        }
+        return findById(CartId.of(pointer.cartId()));
     }
 }

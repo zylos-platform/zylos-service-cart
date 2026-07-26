@@ -13,8 +13,8 @@ spring:
           target: ${CATALOG_GRPC_ADDRESS}
   data:
     redis:
-      host: ${VALKEY_HOST}
-      port: ${VALKEY_PORT}
+      host: ${ZYLOS_VALKEY_HOST}
+      port: ${ZYLOS_VALKEY_PORT}
       password: ${ZYLOS_VALKEY_PASSWORD}
   security:
     oauth2:
@@ -47,10 +47,11 @@ zylos:
       bulkhead-max-concurrent: 32
       retry-max-attempts: 2
       retry-base-ms: 50
-  kafka:
-    schema-registry-url: ${SCHEMA_REGISTRY_URL}
-    auto-register-schemas: ${SCHEMA_AUTO_REGISTER:true}
   cart:
+    concurrency:
+      retry:
+        max-attempts: 4
+        base-ms: 20
     events-topic: cart.cart.events.v1
     snapshot-topic: cart.cart.snapshot.v1
     relay:
@@ -61,6 +62,9 @@ zylos:
       lease-renew-every-records: 20
       send-timeout-seconds: 10
       published-retention-hours: 24
+  kafka:
+    schema-registry-url: ${SCHEMA_REGISTRY_URL}
+    auto-register-schemas: ${SCHEMA_AUTO_REGISTER:true}
   dynamodb:
     table-name: zylos-cart
     endpoint: ${DYNAMODB_ENDPOINT}

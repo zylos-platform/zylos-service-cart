@@ -211,5 +211,28 @@ public final class CartTableSchemas {
                                     .setter(OutboxRecordItem.Builder::expiresAt))
                     .build();
 
+    public static final StaticImmutableTableSchema<ActiveCartPointerItem, ActiveCartPointerItem.Builder>
+            ACTIVE_CART_POINTER = StaticImmutableTableSchema.builder(
+                            ActiveCartPointerItem.class, ActiveCartPointerItem.Builder.class)
+                    .newItemBuilder(ActiveCartPointerItem::builder, ActiveCartPointerItem.Builder::build)
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("PK")
+                                    .getter(ActiveCartPointerItem::pk)
+                                    .setter(ActiveCartPointerItem.Builder::pk)
+                                    .tags(StaticAttributeTags.primaryPartitionKey()))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("SK")
+                                    .getter(ActiveCartPointerItem::sk)
+                                    .setter(ActiveCartPointerItem.Builder::sk)
+                                    .tags(StaticAttributeTags.primarySortKey()))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("cartId")
+                                    .getter(ActiveCartPointerItem::cartId)
+                                    .setter(ActiveCartPointerItem.Builder::cartId))
+                    .build();
+
     private CartTableSchemas() {}
 }

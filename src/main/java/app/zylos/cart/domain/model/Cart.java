@@ -35,7 +35,7 @@ public final class Cart {
     private CartStatus status;
     private @Nullable Currency currency;
     private @Nullable String convertedOrderId;
-    private @Nullable CartId mergedIntoCartId;
+    private final @Nullable CartId mergedIntoCartId;
     private long version;
     private final long baseVersion;
 

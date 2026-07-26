@@ -3,6 +3,7 @@ package app.zylos.cart.application.port.out;
 import java.util.Optional;
 
 import app.zylos.cart.domain.model.Cart;
+import app.zylos.cart.domain.model.CartOwner;
 import app.zylos.cart.domain.vo.CartId;
 
 /**
@@ -19,4 +20,6 @@ public interface CartRepository {
     void save(Cart cart);
 
     Optional<Cart> findById(CartId cartId);
+
+    Optional<Cart> findActiveByOwner(CartOwner owner);
 }
