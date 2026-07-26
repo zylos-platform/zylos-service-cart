@@ -2,7 +2,6 @@ package app.zylos.cart.adapter.out.persistence.dynamodb;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Currency;
 import java.util.List;
 
@@ -37,13 +36,14 @@ final class CartItemMapper {
 
     static CartItem toItem(Cart cart, Instant now) {
         String pk = cartPk(cart.id());
+
+        // TODO: Consolidate the instanceof Checks
+
         String ownerType = cart.owner() instanceof CustomerOwner ? CUSTOMER : GUEST;
         Duration ttl = cart.owner() instanceof CustomerOwner ? CUSTOMER_TTL : GUEST_TTL;
 
-        List<CartLineItem> lineItems = new ArrayList<>(cart.lines().size());
-        for (CartLine line : cart.lines()) {
-            lineItems.add(toLineItem(line));
-        }
+        List<CartLineItem> lineItems =
+                cart.lines().stream().map(CartItemMapper::toLineItem).toList();
 
         return CartItem.builder()
                 .pk(pk)
@@ -82,10 +82,7 @@ final class CartItemMapper {
     }
 
     static Cart toDomain(CartItem item) {
-        List<CartLine> lines = new ArrayList<>(item.lines().size());
-        for (CartLineItem lineItem : item.lines()) {
-            lines.add(toLine(lineItem));
-        }
+        List<CartLine> lines = item.lines().stream().map(CartItemMapper::toLine).toList();
 
         CartOwner owner =
                 CUSTOMER.equals(item.ownerType()) ? new CustomerOwner(item.ownerId()) : new GuestOwner(item.ownerId());

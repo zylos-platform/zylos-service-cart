@@ -1,10 +1,6 @@
 package app.zylos.cart.adapter.out.persistence.dynamodb;
 
-public record ActiveCartPointerItem(
-    String pk,
-    String sk,
-    String cartId
-) {
+public record ActiveCartPointerItem(String pk, String sk, String cartId) {
 
     public static Builder builder() {
         return new Builder();
