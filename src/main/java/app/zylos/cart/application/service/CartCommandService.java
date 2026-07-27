@@ -49,6 +49,7 @@ public class CartCommandService implements CartCommandPort {
     private final CartRepository carts;
     private final CatalogLookupPort catalog;
     private final CurrentOwnerProvider currentOwner;
+    private final CartAuthorizationPort authorization;
     private final Retry cartOptimisticRetry;
     private final Counter degradedAccepts;
     private final Counter optimisticRetries;
@@ -57,11 +58,13 @@ public class CartCommandService implements CartCommandPort {
             CartRepository carts,
             CatalogLookupPort catalog,
             CurrentOwnerProvider currentOwner,
+            CartAuthorizationPort authorization,
             Retry cartOptimisticRetry,
             MeterRegistry registry) {
         this.carts = carts;
         this.catalog = catalog;
         this.currentOwner = currentOwner;
+        this.authorization = authorization;
         this.cartOptimisticRetry = cartOptimisticRetry;
 
         this.degradedAccepts = Counter.builder("zylos.cart.degraded_accept")
@@ -76,10 +79,13 @@ public class CartCommandService implements CartCommandPort {
 
     @Override
     public CartId addLine(AddLineToCartCommand command) {
-        // Resolved once, before any persistence attempt.
+        CartOwner owner = currentOwner.currentOwner();
+        authorization.requireAllowed(owner, CartAction.LINE_ADD);
+
         LineSpec spec = resolve(command.sku());
 
         return mutate(
+                owner,
                 cart -> {
                     switch (spec) {
                         case LineSpec.Validated(
@@ -99,7 +105,11 @@ public class CartCommandService implements CartCommandPort {
     @Override
     public CartId changeLineQuantity(ChangeLineQuantityCommand command) {
         Quantity quantity = command.quantity();
+        CartOwner owner = currentOwner.currentOwner();
+        authorization.requireAllowed(owner, CartAction.LINE_ADD);
+
         return mutate(
+                owner,
                 cart -> {
                     cart.changeLineQuantity(command.sku(), quantity);
                     return cart;
@@ -109,7 +119,11 @@ public class CartCommandService implements CartCommandPort {
 
     @Override
     public CartId removeLine(Sku sku) {
+        CartOwner owner = currentOwner.currentOwner();
+        authorization.requireAllowed(owner, CartAction.LINE_ADD);
+
         return mutate(
+                owner,
                 cart -> {
                     cart.removeLine(sku);
                     return cart;
@@ -119,7 +133,11 @@ public class CartCommandService implements CartCommandPort {
 
     @Override
     public CartId clearCart() {
+        CartOwner owner = currentOwner.currentOwner();
+        authorization.requireAllowed(owner, CartAction.LINE_ADD);
+
         return mutate(
+                owner,
                 cart -> {
                     cart.clear();
                     return cart;
@@ -155,9 +173,7 @@ public class CartCommandService implements CartCommandPort {
      * When {@code createIfAbsent}, a missing cart is started lazily (an empty cart has no business
      * meaning and is never persisted until its first line).
      */
-    private CartId mutate(UnaryOperator<Cart> mutation, boolean createIfAbsent) {
-        CartOwner owner = currentOwner.currentOwner();
-
+    private CartId mutate(CartOwner owner, UnaryOperator<Cart> mutation, boolean createIfAbsent) {
         try {
             return cartOptimisticRetry.executeSupplier(() -> {
                 Optional<Cart> existing = carts.findActiveByOwner(owner);
