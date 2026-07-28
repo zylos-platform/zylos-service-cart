@@ -48,6 +48,10 @@ zylos:
       retry-max-attempts: 2
       retry-base-ms: 50
   cart:
+    idempotency:
+      path-prefix: /api/v1/cart
+      in-flight-ttl-seconds: 60
+      completed-ttl-hours: 24
     concurrency:
       retry:
         max-attempts: 4

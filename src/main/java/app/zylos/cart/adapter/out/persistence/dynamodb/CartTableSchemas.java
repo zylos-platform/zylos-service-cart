@@ -234,5 +234,55 @@ public final class CartTableSchemas {
                                     .setter(ActiveCartPointerItem.Builder::cartId))
                     .build();
 
+    static final StaticImmutableTableSchema<IdempotencyItem, IdempotencyItem.Builder> IDEMPOTENCY =
+            StaticImmutableTableSchema.builder(IdempotencyItem.class, IdempotencyItem.Builder.class)
+                    .newItemBuilder(IdempotencyItem::builder, IdempotencyItem.Builder::build)
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("PK")
+                                    .getter(IdempotencyItem::pk)
+                                    .setter(IdempotencyItem.Builder::pk)
+                                    .tags(StaticAttributeTags.primaryPartitionKey()))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("SK")
+                                    .getter(IdempotencyItem::sk)
+                                    .setter(IdempotencyItem.Builder::sk)
+                                    .tags(StaticAttributeTags.primarySortKey()))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("entityType")
+                                    .getter(IdempotencyItem::entityType)
+                                    .setter(IdempotencyItem.Builder::entityType))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("fingerprint")
+                                    .getter(IdempotencyItem::fingerprint)
+                                    .setter(IdempotencyItem.Builder::fingerprint))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("state").getter(IdempotencyItem::state).setter(IdempotencyItem.Builder::state))
+                    .addAttribute(
+                            Integer.class,
+                            a -> a.name("responseStatus")
+                                    .getter(IdempotencyItem::responseStatus)
+                                    .setter(IdempotencyItem.Builder::responseStatus))
+                    .addAttribute(
+                            String.class,
+                            a -> a.name("responseContentType")
+                                    .getter(IdempotencyItem::responseContentType)
+                                    .setter(IdempotencyItem.Builder::responseContentType))
+                    .addAttribute(
+                            software.amazon.awssdk.core.SdkBytes.class,
+                            a -> a.name("responseBody")
+                                    .getter(IdempotencyItem::responseBody)
+                                    .setter(IdempotencyItem.Builder::responseBody))
+                    .addAttribute(
+                            Long.class,
+                            a -> a.name("expiresAt")
+                                    .getter(IdempotencyItem::expiresAt)
+                                    .setter(IdempotencyItem.Builder::expiresAt))
+                    .build();
+
     private CartTableSchemas() {}
 }

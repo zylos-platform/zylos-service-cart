@@ -3,15 +3,12 @@ package app.zylos.cart.adapter.out.persistence.dynamodb;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.net.URI;
 import java.util.Currency;
 import java.util.List;
 
-import org.junit.jupiter.api.*;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 import app.zylos.cart.application.port.out.OptimisticConcurrencyException;
 import app.zylos.cart.domain.model.Cart;
@@ -19,47 +16,17 @@ import app.zylos.cart.domain.model.CartOwner.CustomerOwner;
 import app.zylos.cart.domain.vo.*;
 import app.zylos.contracts.cart.v1.CartEvent;
 
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.dynamodb.model.*;
 
 @Testcontainers
-class DynamoCartRepositoryIT {
-
-    @Container
-    static final GenericContainer<?> dynamo = new GenericContainer<>(
-                    DockerImageName.parse("amazon/dynamodb-local:3.2.0"))
-            .withCommand("-jar DynamoDBLocal.jar -inMemory -sharedDb")
-            .withExposedPorts(8000);
+class DynamoCartRepositoryIT extends AbstractCartTableIT {
 
     private static final Currency USD = Currency.getInstance("USD");
-    private static final String TABLE = "zylos-cart";
-    private static DynamoDbClient client;
-    private static DynamoDbEnhancedClient enhanced;
+
     private DynamoCartRepository repository;
     private DynamoDbTable<CartItem> cartTable;
     private DynamoDbTable<OutboxRecordItem> outboxTable;
-
-    @BeforeAll
-    static void startClient() {
-        String endpoint = "http://%s:%d".formatted(dynamo.getHost(), dynamo.getMappedPort(8000));
-        client = DynamoDbClient.builder()
-                .endpointOverride(URI.create(endpoint))
-                .region(Region.US_EAST_1)
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("local", "local")))
-                .build();
-        enhanced = DynamoDbEnhancedClient.builder().dynamoDbClient(client).build();
-    }
-
-    @AfterAll
-    static void stopClient() {
-        client.close();
-    }
 
     private static Cart cartWithOneLine() {
         Cart cart = Cart.start(CartId.newId(), new CustomerOwner("customer-123"));
@@ -72,66 +39,14 @@ class DynamoCartRepositoryIT {
         return cart;
     }
 
-    private static void createTable() {
-        client.createTable(b -> b.tableName(TABLE)
-                .billingMode(BillingMode.PAY_PER_REQUEST)
-                .attributeDefinitions(
-                        AttributeDefinition.builder()
-                                .attributeName("PK")
-                                .attributeType(ScalarAttributeType.S)
-                                .build(),
-                        AttributeDefinition.builder()
-                                .attributeName("SK")
-                                .attributeType(ScalarAttributeType.S)
-                                .build(),
-                        AttributeDefinition.builder()
-                                .attributeName("GSI1PK")
-                                .attributeType(ScalarAttributeType.S)
-                                .build(),
-                        AttributeDefinition.builder()
-                                .attributeName("GSI1SK")
-                                .attributeType(ScalarAttributeType.S)
-                                .build())
-                .keySchema(
-                        KeySchemaElement.builder()
-                                .attributeName("PK")
-                                .keyType(KeyType.HASH)
-                                .build(),
-                        KeySchemaElement.builder()
-                                .attributeName("SK")
-                                .keyType(KeyType.RANGE)
-                                .build())
-                .globalSecondaryIndexes(GlobalSecondaryIndex.builder()
-                        .indexName(CartTableSchemas.GSI1_OWNER)
-                        .keySchema(
-                                KeySchemaElement.builder()
-                                        .attributeName("GSI1PK")
-                                        .keyType(KeyType.HASH)
-                                        .build(),
-                                KeySchemaElement.builder()
-                                        .attributeName("GSI1SK")
-                                        .keyType(KeyType.RANGE)
-                                        .build())
-                        .projection(Projection.builder()
-                                .projectionType(ProjectionType.KEYS_ONLY)
-                                .build())
-                        .build()));
-        client.waiter().waitUntilTableExists(r -> r.tableName(TABLE));
-    }
-
     @BeforeEach
-    void setUp() {
-        createTable();
+    void setUpRepository() {
         CartOutboxRecordFactory outboxFactory =
                 new CartOutboxRecordFactory("zylos-service-cart", "test", () -> "corr-123");
-        repository = new DynamoCartRepository(enhanced, outboxFactory, TABLE);
-        cartTable = enhanced.table(TABLE, CartTableSchemas.CART);
-        outboxTable = enhanced.table(TABLE, CartTableSchemas.OUTBOX);
-    }
 
-    @AfterEach
-    void tearDown() {
-        client.deleteTable(b -> b.tableName(TABLE));
+        repository = new DynamoCartRepository(enhancedClient, outboxFactory, TABLE);
+        cartTable = enhancedClient.table(TABLE, CartTableSchemas.CART);
+        outboxTable = enhancedClient.table(TABLE, CartTableSchemas.OUTBOX);
     }
 
     @Test
