@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import app.zylos.cart.adapter.out.security.OpaCartAuthorization;
 import app.zylos.cart.application.command.AddLineToCartCommand;
 import app.zylos.cart.application.exception.CartContentionException;
 import app.zylos.cart.application.exception.SkuNotFoundException;
@@ -64,7 +65,7 @@ class CartCommandServiceTest {
                         .failAfterMaxAttempts(true)
                         .build());
 
-        service = new CartCommandService(carts, catalog, owner, retry, registry);
+        service = new CartCommandService(carts, catalog, owner, mock(OpaCartAuthorization.class), retry, registry);
         when(carts.findActiveByOwner(OWNER)).thenReturn(Optional.empty());
     }
 

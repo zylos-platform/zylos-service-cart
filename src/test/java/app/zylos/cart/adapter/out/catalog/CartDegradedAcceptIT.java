@@ -1,6 +1,7 @@
 package app.zylos.cart.adapter.out.catalog;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.net.URI;
@@ -27,6 +28,7 @@ import app.zylos.cart.adapter.out.catalog.resilience.ResilientCatalogClient;
 import app.zylos.cart.adapter.out.persistence.dynamodb.CartOutboxRecordFactory;
 import app.zylos.cart.adapter.out.persistence.dynamodb.CartTableSchemas;
 import app.zylos.cart.adapter.out.persistence.dynamodb.DynamoCartRepository;
+import app.zylos.cart.adapter.out.security.OpaCartAuthorization;
 import app.zylos.cart.application.command.AddLineToCartCommand;
 import app.zylos.cart.application.port.out.OptimisticConcurrencyException;
 import app.zylos.cart.application.service.CartCommandService;
@@ -238,7 +240,8 @@ class CartDegradedAcceptIT {
                         .failAfterMaxAttempts(true)
                         .build());
 
-        service = new CartCommandService(repository, caching, () -> OWNER, retry, registry);
+        service = new CartCommandService(
+                repository, caching, () -> OWNER, mock(OpaCartAuthorization.class), retry, registry);
         createTable();
     }
 
