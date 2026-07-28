@@ -1,5 +1,8 @@
 package app.zylos.cart.application.port.out;
 
+import java.util.Collection;
+import java.util.Map;
+
 import app.zylos.cart.domain.vo.Sku;
 
 /**
@@ -11,4 +14,6 @@ import app.zylos.cart.domain.vo.Sku;
 public interface CatalogLookupPort {
 
     CatalogLookup lookup(Sku sku);
+
+    Map<Sku, CatalogLookup> lookupAll(Collection<Sku> skus);
 }

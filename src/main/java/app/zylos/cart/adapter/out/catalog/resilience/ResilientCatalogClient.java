@@ -1,6 +1,10 @@
 package app.zylos.cart.adapter.out.catalog.resilience;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
@@ -52,6 +56,26 @@ public class ResilientCatalogClient implements CatalogLookupPort {
             return guarded.get();
         } catch (CallNotPermittedException | BulkheadFullException | CatalogUnavailableException _) {
             return new CatalogLookup.Unavailable(sku);
+        }
+    }
+
+    @Override
+    public Map<Sku, CatalogLookup> lookupAll(Collection<Sku> skus) {
+        if (skus.isEmpty()) {
+            return Map.of();
+        }
+
+        Supplier<Map<Sku, CatalogLookup>> guarded = Retry.decorateSupplier(
+                retry,
+                Bulkhead.decorateSupplier(
+                        bulkhead, CircuitBreaker.decorateSupplier(circuitBreaker, () -> delegate.lookupAll(skus))));
+        try {
+            return guarded.get();
+        } catch (CallNotPermittedException | BulkheadFullException | CatalogUnavailableException _) {
+            // The batch is atomic from the caller's perspective.
+            return skus.stream()
+                    .collect(Collectors.toMap(
+                            sku -> sku, CatalogLookup.Unavailable::new, (a, b) -> a, LinkedHashMap::new));
         }
     }
 }

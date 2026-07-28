@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 
 import java.util.Currency;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -121,5 +122,11 @@ class CachingCatalogClientTest {
                         CatalogLookup.Found.class,
                         f -> assertThat(f.snapshot().unitPrice().minorUnits()).isEqualTo(2999L)); // refreshed
         assertThat(store).containsKey("k:" + SKU.value());
+    }
+
+    @Test
+    void anEmptyRequestNeverTouchesTheDelegate() {
+        assertThat(client.lookupAll(List.of())).isEmpty();
+        verify(delegate, never()).lookupAll(any());
     }
 }
