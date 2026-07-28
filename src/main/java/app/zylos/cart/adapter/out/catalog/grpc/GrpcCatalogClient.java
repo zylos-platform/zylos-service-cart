@@ -1,6 +1,9 @@
 package app.zylos.cart.adapter.out.catalog.grpc;
 
+import java.util.Collection;
 import java.util.Currency;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.stereotype.Component;
@@ -11,10 +14,7 @@ import app.zylos.cart.application.port.out.CatalogSnapshot;
 import app.zylos.cart.config.ZylosCatalogGrpcProperties;
 import app.zylos.cart.domain.vo.Money;
 import app.zylos.cart.domain.vo.Sku;
-import app.zylos.contracts.zylos.catalog.v1.GetVariantBySkuRequest;
-import app.zylos.contracts.zylos.catalog.v1.GetVariantBySkuResponse;
-import app.zylos.contracts.zylos.catalog.v1.ProductServiceGrpc;
-import app.zylos.contracts.zylos.catalog.v1.VariantSnapshot;
+import app.zylos.contracts.zylos.catalog.v1.*;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -45,18 +45,7 @@ public class GrpcCatalogClient implements CatalogLookupPort {
                             .setSku(sku.value())
                             .build());
             VariantSnapshot variant = response.getVariant();
-
-            if (!variant.getPurchasable()) {
-                return new CatalogLookup.NotPurchasable(sku);
-            }
-
-            return new CatalogLookup.Found(new CatalogSnapshot(
-                    sku,
-                    Money.ofMinor(
-                            variant.getListPrice().getMinorUnits(),
-                            Currency.getInstance(variant.getListPrice().getCurrencyCode())),
-                    variant.getSellerId(),
-                    variant.getCatalogVersion()));
+            return toLookup(sku, variant);
         } catch (StatusRuntimeException e) {
             Status.Code code = e.getStatus().getCode();
             if (code == Status.Code.NOT_FOUND) {
@@ -65,5 +54,47 @@ public class GrpcCatalogClient implements CatalogLookupPort {
 
             throw new CatalogUnavailableException("Catalog lookup failed for %s: %s".formatted(sku, code), e);
         }
+    }
+
+    @Override
+    public Map<Sku, CatalogLookup> lookupAll(Collection<Sku> skus) {
+        if (skus.isEmpty()) {
+            return Map.of();
+        }
+
+        try {
+            BatchGetVariantsBySkuResponse response = stub.withDeadlineAfter(deadlineMs, TimeUnit.MILLISECONDS)
+                    .batchGetVariantsBySku(BatchGetVariantsBySkuRequest.newBuilder()
+                            .addAllSkus(skus.stream().map(Sku::value).toList())
+                            .build());
+
+            Map<String, VariantSnapshot> variants = response.getVariantsMap();
+            Map<Sku, CatalogLookup> results = new LinkedHashMap<>();
+            for (Sku sku : skus) {
+                VariantSnapshot variant = variants.get(sku.value());
+                // Absent from the response is an authoritative negative, per the contract.
+                results.put(sku, variant == null ? new CatalogLookup.NotFound(sku) : toLookup(sku, variant));
+            }
+            return results;
+        } catch (StatusRuntimeException e) {
+            throw new CatalogUnavailableException(
+                    "Catalog batch lookup failed (%d SKUs): %s"
+                            .formatted(skus.size(), e.getStatus().getCode()),
+                    e);
+        }
+    }
+
+    private static CatalogLookup toLookup(Sku sku, VariantSnapshot variant) {
+        if (!variant.getPurchasable()) {
+            return new CatalogLookup.NotPurchasable(sku);
+        }
+
+        return new CatalogLookup.Found(new CatalogSnapshot(
+                sku,
+                Money.ofMinor(
+                        variant.getListPrice().getMinorUnits(),
+                        Currency.getInstance(variant.getListPrice().getCurrencyCode())),
+                variant.getSellerId(),
+                variant.getCatalogVersion()));
     }
 }

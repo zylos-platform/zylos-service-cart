@@ -2,7 +2,7 @@ package app.zylos.cart.adapter.out.catalog.cache;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Optional;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,6 +86,46 @@ public class CachingCatalogClient implements CatalogLookupPort {
         return result;
     }
 
+    @Override
+    public Map<Sku, CatalogLookup> lookupAll(Collection<Sku> skus) {
+        if (skus.isEmpty()) {
+            return Map.of();
+        }
+        long now = Instant.now().toEpochMilli();
+
+        Map<Sku, CatalogLookup> results = new LinkedHashMap<>();
+        Map<Sku, CatalogCacheEntry> stale = new LinkedHashMap<>();
+        List<Sku> toFetch = new ArrayList<>();
+
+        for (Sku sku : skus) {
+            Optional<CatalogCacheEntry> cached = get(keyPrefix + sku.value());
+            if (cached.isPresent() && cached.get().isFresh(now)) {
+                results.put(sku, cached.get().toLookup(sku));
+            } else {
+                cached.ifPresent(entry -> stale.put(sku, entry));
+                toFetch.add(sku);
+            }
+        }
+
+        if (!toFetch.isEmpty()) {
+            Map<Sku, CatalogLookup> fetched = delegate.lookupAll(toFetch);
+            for (Sku sku : toFetch) {
+                CatalogLookup result = fetched.getOrDefault(sku, new CatalogLookup.Unavailable(sku));
+
+                if (result instanceof CatalogLookup.Unavailable && stale.containsKey(sku)) {
+                    staleServed.increment();
+                    results.put(sku, stale.get(sku).toLookup(sku)); // stale-while-error
+                } else {
+                    if (!(result instanceof CatalogLookup.Unavailable)) {
+                        put(keyPrefix + sku.value(), result, now);
+                    }
+                    results.put(sku, result);
+                }
+            }
+        }
+        return results;
+    }
+
     private Optional<CatalogCacheEntry> get(String key) {
         try {
             return Optional.ofNullable(cache.opsForValue().get(key));
@@ -99,6 +139,7 @@ public class CachingCatalogClient implements CatalogLookupPort {
         boolean negative = !(lookup instanceof CatalogLookup.Found);
         Duration fresh = negative ? negativeFresh : foundFresh;
         Duration hard = negative ? negativeHard : foundHard;
+
         try {
             cache.opsForValue().set(key, CatalogCacheEntry.of(lookup, now + fresh.toMillis()), hard);
         } catch (RuntimeException e) {
