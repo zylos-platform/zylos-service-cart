@@ -201,6 +201,14 @@ public final class Cart {
     }
 
     /**
+     * Records the cart's expiry. Deliberately permitted from any status, including the terminal ones.
+     */
+    public void expire() {
+        bumpVersion();
+        recordEvent(new CartExpired(id, version));
+    }
+
+    /**
      * Returns and clears the events recorded since the last pull.
      */
     public List<DomainEvent> pullDomainEvents() {

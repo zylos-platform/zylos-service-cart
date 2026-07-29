@@ -20,13 +20,11 @@ import app.zylos.cart.domain.vo.*;
 /**
  * Maps between the {@link Cart} aggregate and its single-table {@link CartItem} representation.
  */
-final class CartItemMapper {
+public final class CartItemMapper {
 
-    private static final String CUSTOMER = "CUSTOMER";
-    private static final String GUEST = "GUEST";
-
-    private static final Duration CUSTOMER_TTL = Duration.ofDays(180);
-    private static final Duration GUEST_TTL = Duration.ofDays(30);
+    private static final String TYPE_CUSTOMER = "CUSTOMER";
+    private static final String TYPE_GUEST = "GUEST";
+    public static final int EXPIRY_SHARDS = 8;
 
     private CartItemMapper() {}
 
@@ -34,21 +32,30 @@ final class CartItemMapper {
         return "CART#" + cartId.value();
     }
 
+    public static String expiryPartition(int shard) {
+        return "EXP#" + shard;
+    }
+
+    static int shardFor(String cartId) {
+        return Math.floorMod(cartId.hashCode(), EXPIRY_SHARDS);
+    }
+
     static CartItem toItem(Cart cart, Instant now) {
         String pk = cartPk(cart.id());
 
-        // TODO: Consolidate the instanceof Checks
-
-        String ownerType = cart.owner() instanceof CustomerOwner ? CUSTOMER : GUEST;
-        Duration ttl = cart.owner() instanceof CustomerOwner ? CUSTOMER_TTL : GUEST_TTL;
+        String ownerType = cart.owner() instanceof CustomerOwner ? TYPE_CUSTOMER : TYPE_GUEST;
+        Duration ttl = cart.owner().timeToLive();
 
         List<CartLineItem> lineItems =
                 cart.lines().stream().map(CartItemMapper::toLineItem).toList();
 
+        long expiresAt = now.plus(ttl).getEpochSecond();
+        String cartId = cart.id().value().toString();
+
         return CartItem.builder()
                 .pk(pk)
                 .sk(pk)
-                .cartId(cart.id().value().toString())
+                .cartId(cartId)
                 .ownerType(ownerType)
                 .ownerId(cart.owner().subjectId())
                 .status(cart.status().name())
@@ -62,9 +69,9 @@ final class CartItemMapper {
                         cart.mergedIntoCartId() == null
                                 ? null
                                 : cart.mergedIntoCartId().value().toString())
-                .gsi1pk("OWNER#" + ownerType + "#" + cart.owner().subjectId())
-                .gsi1sk(pk)
-                .expiresAt(now.plus(ttl).getEpochSecond())
+                .gsi1pk(expiryPartition(shardFor(cartId)))
+                .gsi1sk(String.valueOf(expiresAt))
+                .expiresAt(expiresAt)
                 .build();
     }
 
@@ -81,11 +88,12 @@ final class CartItemMapper {
                 .build();
     }
 
-    static Cart toDomain(CartItem item) {
+    public static Cart toDomain(CartItem item) {
         List<CartLine> lines = item.lines().stream().map(CartItemMapper::toLine).toList();
 
         CartOwner owner =
-                CUSTOMER.equals(item.ownerType()) ? new CustomerOwner(item.ownerId()) : new GuestOwner(item.ownerId());
+                TYPE_CUSTOMER.equals(item.ownerType()) ? new CustomerOwner(item.ownerId()) : new GuestOwner(item.ownerId());
+        String mergeId = item.mergedIntoCartId();
 
         return Cart.reconstitute(
                 CartId.of(item.cartId()),
@@ -94,7 +102,7 @@ final class CartItemMapper {
                 item.currency() == null ? null : Currency.getInstance(item.currency()),
                 lines,
                 item.convertedOrderId(),
-                item.mergedIntoCartId() == null ? null : CartId.of(item.mergedIntoCartId()),
+                mergeId == null ? null : CartId.of(mergeId),
                 item.version());
     }
 
@@ -109,13 +117,15 @@ final class CartItemMapper {
     }
 
     private static @Nullable PriceSnapshot priceSnapshot(CartLineItem lineItem) {
-        if (lineItem.priceMinorUnits() == null
-                || lineItem.priceCurrency() == null
-                || lineItem.catalogVersion() == null) {
+        Long minorUnits = lineItem.priceMinorUnits();
+        String priceCurrency = lineItem.priceCurrency();
+        Long catalogVersion = lineItem.catalogVersion();
+
+        if (minorUnits == null || priceCurrency == null || catalogVersion == null) {
             return null;
         }
 
-        Money price = Money.ofMinor(lineItem.priceMinorUnits(), Currency.getInstance(lineItem.priceCurrency()));
-        return new PriceSnapshot(price, lineItem.catalogVersion());
+        Money price = Money.ofMinor(minorUnits, Currency.getInstance(priceCurrency));
+        return new PriceSnapshot(price, catalogVersion);
     }
 }
