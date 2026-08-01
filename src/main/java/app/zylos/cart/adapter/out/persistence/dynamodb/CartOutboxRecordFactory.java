@@ -4,20 +4,24 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Currency;
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.github.f4b6a3.uuid.UuidCreator;
 import com.github.f4b6a3.uuid.util.UuidUtil;
 
 import app.zylos.cart.application.port.out.RequestCorrelationProvider;
+import app.zylos.cart.config.ZylosCartOutboxProperties;
+import app.zylos.cart.config.ZylosCartServiceProperties;
 import app.zylos.cart.domain.event.CartConverted;
+import app.zylos.cart.domain.event.CartExpired;
 import app.zylos.cart.domain.event.DomainEvent;
 import app.zylos.cart.domain.model.Cart;
 import app.zylos.cart.domain.model.CartLine;
 import app.zylos.cart.domain.model.CartOwner.CustomerOwner;
+import app.zylos.cart.domain.vo.CartId;
 import app.zylos.cart.domain.vo.PriceSnapshot;
 import app.zylos.contracts.cart.v1.CartEvent;
 import app.zylos.contracts.cart.v1.CartOwner;
@@ -37,25 +41,24 @@ import software.amazon.awssdk.core.SdkBytes;
 @Component
 public class CartOutboxRecordFactory {
 
-    public static final int OUTBOX_SHARDS = 16;
     private static final String AGGREGATE_TYPE = "cart";
     private static final int EVENT_SCHEMA_VERSION = 1;
 
-    private final String producerService;
-    private final String producerVersion;
+    private static final String PREFIX_OUTBOX = "OUTBOX#";
+    private static final String PREFIX_PENDING = "PENDING#";
+    private static final String STATUS_PENDING = "PENDING";
+
+    private final ZylosCartServiceProperties serviceProperties;
+    private final ZylosCartOutboxProperties outboxProperties;
     private final RequestCorrelationProvider correlation;
 
     public CartOutboxRecordFactory(
-            @Value("${spring.application.name:zylos-service-cart}") String producerService,
-            @Value("${zylos.service.version:0.0.0}") String producerVersion,
+            ZylosCartServiceProperties serviceProperties,
+            ZylosCartOutboxProperties outboxProperties,
             RequestCorrelationProvider correlation) {
-        this.producerService = producerService;
-        this.producerVersion = producerVersion;
+        this.serviceProperties = serviceProperties;
+        this.outboxProperties = outboxProperties;
         this.correlation = correlation;
-    }
-
-    static int shardFor(String cartId) {
-        return Math.floorMod(cartId.hashCode(), OUTBOX_SHARDS);
     }
 
     /**
@@ -83,13 +86,14 @@ public class CartOutboxRecordFactory {
 
         CartState state = cartState(cart, occurredAt);
         Producer producer = Producer.newBuilder()
-                .setService(producerService)
-                .setVersion(producerVersion)
+                .setService(serviceProperties.name())
+                .setVersion(serviceProperties.version())
                 .build();
+
         String aggregateId = cart.id().value().toString();
-        int shard = shardFor(aggregateId);
         String correlationId = correlation.correlationId();
         String causationId = UuidCreator.getTimeOrderedEpoch().toString();
+        int shard = shardFor(aggregateId);
 
         List<OutboxRecordItem> records = new ArrayList<>(events.size());
         for (DomainEvent event : events) {
@@ -110,7 +114,7 @@ public class CartOutboxRecordFactory {
                     .build();
 
             records.add(OutboxRecordItem.builder()
-                    .pk("OUTBOX#" + shard)
+                    .pk(PREFIX_OUTBOX + shard)
                     .sk(eventId)
                     .shardId(shard)
                     .outboxId(eventId)
@@ -120,14 +124,22 @@ public class CartOutboxRecordFactory {
                     .aggregateType(AGGREGATE_TYPE)
                     .cartId(aggregateId)
                     .occurredAt(occurredAt)
-                    .terminal(event instanceof CartConverted)
+                    .terminal(isTerminal(event))
                     .payload(encode(envelope))
-                    .gsi3pk("PENDING#" + shard)
-                    .gsi3sk(eventId)
-                    .status("PENDING")
+                    .gsi2pk(PREFIX_PENDING + shard)
+                    .gsi2sk(eventId)
+                    .status(STATUS_PENDING)
                     .build());
         }
         return records;
+    }
+
+    private int shardFor(String cartId) {
+        return Math.floorMod(cartId.hashCode(), outboxProperties.writeShards());
+    }
+
+    private boolean isTerminal(DomainEvent event) {
+        return event instanceof CartConverted || event instanceof CartExpired;
     }
 
     private CartState cartState(Cart cart, Instant occurredAt) {
@@ -147,6 +159,8 @@ public class CartOutboxRecordFactory {
         }
 
         String ownerType = cart.owner() instanceof CustomerOwner ? "CUSTOMER" : "GUEST";
+        Currency currency = cart.currency();
+        CartId mergedIntoCartId = cart.mergedIntoCartId();
 
         return CartState.newBuilder()
                 .setCartId(cart.id().value().toString())
@@ -155,16 +169,16 @@ public class CartOutboxRecordFactory {
                         .setOwnerId(cart.owner().subjectId())
                         .build())
                 .setStatus(cart.status().name())
-                .setCurrency(cart.currency() == null ? null : cart.currency().getCurrencyCode())
+                .setCurrency(currency == null ? null : currency.getCurrencyCode())
                 .setLines(lines)
                 .setVersion(cart.version())
                 .setCreatedAt(UuidUtil.getInstant(cart.id().value()))
                 .setUpdatedAt(occurredAt)
                 .setConvertedOrderId(cart.convertedOrderId())
                 .setMergedIntoCartId(
-                        cart.mergedIntoCartId() == null
+                        mergedIntoCartId == null
                                 ? null
-                                : cart.mergedIntoCartId().value().toString())
+                                : mergedIntoCartId.value().toString())
                 .build();
     }
 }

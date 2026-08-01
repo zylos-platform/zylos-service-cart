@@ -41,7 +41,7 @@ public class OutboxStore {
         this.client = dynamoDbClient;
         this.asyncClient = asyncClient;
         this.outboxTable = enhancedClient.table(dynamoDbProperties.tableName(), CartTableSchemas.OUTBOX);
-        this.pendingIndex = outboxTable.index(CartTableSchemas.GSI3_OUTBOX_PENDING);
+        this.pendingIndex = outboxTable.index(CartTableSchemas.GSI2_OUTBOX_PENDING);
     }
 
     private static AttributeValue str(String v) {
@@ -70,7 +70,7 @@ public class OutboxStore {
                             ":etype", str("RelayLease")))
                     .build());
             return Optional.of(new RelayLease(shard, owner, expiresAt));
-        } catch (ConditionalCheckFailedException e) {
+        } catch (ConditionalCheckFailedException _) {
             return Optional.empty();
         }
     }
@@ -138,7 +138,7 @@ public class OutboxStore {
         return asyncClient.updateItem(UpdateItemRequest.builder()
                 .tableName(outboxTable.tableName())
                 .key(Map.of("PK", str(item.pk()), "SK", str(item.sk())))
-                .updateExpression("REMOVE GSI3PK, GSI3SK, #status SET expiresAt = :exp")
+                .updateExpression("REMOVE GSI2PK, GSI2SK, #status SET expiresAt = :exp")
                 .conditionExpression("attribute_exists(PK)")
                 .expressionAttributeNames(Map.of("#status", "status"))
                 .expressionAttributeValues(
@@ -150,7 +150,7 @@ public class OutboxStore {
         client.updateItem(UpdateItemRequest.builder()
                 .tableName(outboxTable.tableName())
                 .key(Map.of("PK", str(item.pk()), "SK", str(item.sk())))
-                .updateExpression("REMOVE GSI3PK, GSI3SK, #status SET expiresAt = :exp")
+                .updateExpression("REMOVE GSI2PK, GSI2SK, #status SET expiresAt = :exp")
                 .conditionExpression("attribute_exists(PK)")
                 .expressionAttributeNames(Map.of("#status", "status"))
                 .expressionAttributeValues(
@@ -174,8 +174,8 @@ public class OutboxStore {
                 .occurredAt(item.occurredAt())
                 .terminal(item.terminal())
                 .payload(item.payload())
-                .gsi3pk(null)
-                .gsi3sk(null)
+                .gsi2pk(null)
+                .gsi2sk(null)
                 .status("DEAD")
                 .expiresAt(null) // poison is retained for investigation
                 .build();

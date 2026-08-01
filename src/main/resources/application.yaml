@@ -66,6 +66,20 @@ zylos:
       lease-renew-every-records: 20
       send-timeout-seconds: 10
       published-retention-hours: 24
+    reaper:
+      batch-size: 200
+      rate-limit:
+        max-writes-per-second: 50
+        timeout: 10s
+      retry:
+        max-attempts: 3
+        wait-duration: 500ms
+    outbox:
+      write-shards: 16
+      read-shards: 16
+    expiry:
+      write-shards: 8
+      read-shards: 8
   kafka:
     schema-registry-url: ${SCHEMA_REGISTRY_URL}
     auto-register-schemas: ${SCHEMA_AUTO_REGISTER:true}
@@ -75,4 +89,49 @@ zylos:
   aws:
     region: ${AWS_REGION:us-east-1}
   service:
+    name: ${spring.application.name}
     version: ${SERVICE_VERSION:0.0.0}
+
+management:
+  server:
+    port: 9000
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics,reaper
+      base-path: /actuator
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+    circuitbreakers:
+      enabled: true
+  info:
+    git:
+      mode: full
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  opentelemetry:
+    resource-attributes:
+      service.name: ${spring.application.name}
+      service.version: ${app.version:unknown}
+      deployment.environment: ${spring.profiles.active}
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}
+  otlp:
+    metrics:
+      export:
+        enabled: true
+        url: ${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT}
+
+app:
+  version: "@project.version@"

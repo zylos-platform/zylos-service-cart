@@ -1,5 +1,6 @@
 package app.zylos.cart.domain.model;
 
+import java.time.Duration;
 import java.util.Objects;
 
 import app.zylos.cart.domain.exception.CartDomainException;
@@ -16,7 +17,14 @@ public sealed interface CartOwner permits CartOwner.CustomerOwner, CartOwner.Gue
      */
     String subjectId();
 
+    /**
+     * The time-to-live for the cart, after which it will be automatically removed.
+     */
+    Duration timeToLive();
+
     record CustomerOwner(String customerId) implements CartOwner {
+        private static final Duration TTL = Duration.ofDays(180);
+
         public CustomerOwner {
             Objects.requireNonNull(customerId, "customerId must not be null");
             if (customerId.isBlank()) {
@@ -28,9 +36,16 @@ public sealed interface CartOwner permits CartOwner.CustomerOwner, CartOwner.Gue
         public String subjectId() {
             return customerId;
         }
+
+        @Override
+        public Duration timeToLive() {
+            return TTL;
+        }
     }
 
     record GuestOwner(String guestId) implements CartOwner {
+        private static final Duration TTL = Duration.ofDays(30);
+
         public GuestOwner {
             Objects.requireNonNull(guestId, "guestId must not be null");
             if (guestId.isBlank()) {
@@ -41,6 +56,11 @@ public sealed interface CartOwner permits CartOwner.CustomerOwner, CartOwner.Gue
         @Override
         public String subjectId() {
             return guestId;
+        }
+
+        @Override
+        public Duration timeToLive() {
+            return TTL;
         }
     }
 }

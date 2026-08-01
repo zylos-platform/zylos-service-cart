@@ -20,51 +20,68 @@ import app.zylos.cart.domain.vo.*;
 /**
  * Maps between the {@link Cart} aggregate and its single-table {@link CartItem} representation.
  */
-final class CartItemMapper {
+public final class CartItemMapper {
 
-    private static final String CUSTOMER = "CUSTOMER";
-    private static final String GUEST = "GUEST";
-
-    private static final Duration CUSTOMER_TTL = Duration.ofDays(180);
-    private static final Duration GUEST_TTL = Duration.ofDays(30);
+    private static final String TYPE_CUSTOMER = "CUSTOMER";
+    private static final String TYPE_GUEST = "GUEST";
+    private static final String PREFIX_CART_PK = "CART#";
+    private static final String PREFIX_EXPIRY_PK = "EXP#";
 
     private CartItemMapper() {}
 
     static String cartPk(CartId cartId) {
-        return "CART#" + cartId.value();
+        return PREFIX_CART_PK + cartId.value();
     }
 
-    static CartItem toItem(Cart cart, Instant now) {
+    static int shardFor(String cartId, int shard) {
+        return Math.floorMod(cartId.hashCode(), shard);
+    }
+
+    public static String expiryPk(int shard) {
+        return PREFIX_EXPIRY_PK + shard;
+    }
+
+    public static CartId parseIdFromPk(@Nullable String pk) {
+        if (pk != null && pk.startsWith(PREFIX_CART_PK)) {
+            return CartId.of(pk.substring(PREFIX_CART_PK.length()));
+        }
+        throw new IllegalArgumentException("Malformed DynamoDB Partition Key: " + pk);
+    }
+
+    static CartItem toItem(Cart cart, Instant now, int shard) {
         String pk = cartPk(cart.id());
 
-        // TODO: Consolidate the instanceof Checks
-
-        String ownerType = cart.owner() instanceof CustomerOwner ? CUSTOMER : GUEST;
-        Duration ttl = cart.owner() instanceof CustomerOwner ? CUSTOMER_TTL : GUEST_TTL;
+        String ownerType = cart.owner() instanceof CustomerOwner ? TYPE_CUSTOMER : TYPE_GUEST;
+        Duration ttl = cart.owner().timeToLive();
 
         List<CartLineItem> lineItems =
                 cart.lines().stream().map(CartItemMapper::toLineItem).toList();
 
+        long expiresAt = now.plus(ttl).getEpochSecond();
+        String cartId = cart.id().value().toString();
+        Currency cartCurrency = cart.currency();
+        CartId mergedIntoCartId = cart.mergedIntoCartId();
+
         return CartItem.builder()
                 .pk(pk)
                 .sk(pk)
-                .cartId(cart.id().value().toString())
+                .cartId(cartId)
                 .ownerType(ownerType)
                 .ownerId(cart.owner().subjectId())
                 .status(cart.status().name())
-                .currency(cart.currency() == null ? null : cart.currency().getCurrencyCode())
+                .currency(cartCurrency == null ? null : cartCurrency.getCurrencyCode())
                 .lines(lineItems)
                 .version(cart.version())
                 .createdAt(UuidUtil.getInstant(cart.id().value()))
                 .updatedAt(now)
                 .convertedOrderId(cart.convertedOrderId())
                 .mergedIntoCartId(
-                        cart.mergedIntoCartId() == null
+                        mergedIntoCartId == null
                                 ? null
-                                : cart.mergedIntoCartId().value().toString())
-                .gsi1pk("OWNER#" + ownerType + "#" + cart.owner().subjectId())
-                .gsi1sk(pk)
-                .expiresAt(now.plus(ttl).getEpochSecond())
+                                : mergedIntoCartId.value().toString())
+                .gsi1pk(expiryPk(shardFor(cartId, shard)))
+                .gsi1sk(String.valueOf(expiresAt))
+                .expiresAt(expiresAt)
                 .build();
     }
 
@@ -81,11 +98,13 @@ final class CartItemMapper {
                 .build();
     }
 
-    static Cart toDomain(CartItem item) {
+    public static Cart toDomain(CartItem item) {
         List<CartLine> lines = item.lines().stream().map(CartItemMapper::toLine).toList();
 
-        CartOwner owner =
-                CUSTOMER.equals(item.ownerType()) ? new CustomerOwner(item.ownerId()) : new GuestOwner(item.ownerId());
+        CartOwner owner = TYPE_CUSTOMER.equals(item.ownerType())
+                ? new CustomerOwner(item.ownerId())
+                : new GuestOwner(item.ownerId());
+        String mergedIntoCartId = item.mergedIntoCartId();
 
         return Cart.reconstitute(
                 CartId.of(item.cartId()),
@@ -94,7 +113,7 @@ final class CartItemMapper {
                 item.currency() == null ? null : Currency.getInstance(item.currency()),
                 lines,
                 item.convertedOrderId(),
-                item.mergedIntoCartId() == null ? null : CartId.of(item.mergedIntoCartId()),
+                mergedIntoCartId == null ? null : CartId.of(mergedIntoCartId),
                 item.version());
     }
 
@@ -109,13 +128,15 @@ final class CartItemMapper {
     }
 
     private static @Nullable PriceSnapshot priceSnapshot(CartLineItem lineItem) {
-        if (lineItem.priceMinorUnits() == null
-                || lineItem.priceCurrency() == null
-                || lineItem.catalogVersion() == null) {
+        Long minorUnits = lineItem.priceMinorUnits();
+        String priceCurrency = lineItem.priceCurrency();
+        Long catalogVersion = lineItem.catalogVersion();
+
+        if (minorUnits == null || priceCurrency == null || catalogVersion == null) {
             return null;
         }
 
-        Money price = Money.ofMinor(lineItem.priceMinorUnits(), Currency.getInstance(lineItem.priceCurrency()));
-        return new PriceSnapshot(price, lineItem.catalogVersion());
+        Money price = Money.ofMinor(minorUnits, Currency.getInstance(priceCurrency));
+        return new PriceSnapshot(price, catalogVersion);
     }
 }

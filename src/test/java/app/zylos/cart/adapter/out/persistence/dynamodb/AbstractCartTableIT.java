@@ -71,6 +71,14 @@ public abstract class AbstractCartTableIT {
                         AttributeDefinition.builder()
                                 .attributeName("GSI1SK")
                                 .attributeType(ScalarAttributeType.S)
+                                .build(),
+                        AttributeDefinition.builder()
+                                .attributeName("GSI2PK")
+                                .attributeType(ScalarAttributeType.S)
+                                .build(),
+                        AttributeDefinition.builder()
+                                .attributeName("GSI2SK")
+                                .attributeType(ScalarAttributeType.S)
                                 .build())
                 .keySchema(
                         KeySchemaElement.builder()
@@ -81,21 +89,40 @@ public abstract class AbstractCartTableIT {
                                 .attributeName("SK")
                                 .keyType(KeyType.RANGE)
                                 .build())
-                .globalSecondaryIndexes(GlobalSecondaryIndex.builder()
-                        .indexName(CartTableSchemas.GSI1_OWNER)
-                        .keySchema(
-                                KeySchemaElement.builder()
-                                        .attributeName("GSI1PK")
-                                        .keyType(KeyType.HASH)
-                                        .build(),
-                                KeySchemaElement.builder()
-                                        .attributeName("GSI1SK")
-                                        .keyType(KeyType.RANGE)
+                .globalSecondaryIndexes(
+                        // GSI 1: Expiry
+                        GlobalSecondaryIndex.builder()
+                                .indexName(CartTableSchemas.GSI1_EXPIRY)
+                                .keySchema(
+                                        KeySchemaElement.builder()
+                                                .attributeName("GSI1PK")
+                                                .keyType(KeyType.HASH)
+                                                .build(),
+                                        KeySchemaElement.builder()
+                                                .attributeName("GSI1SK")
+                                                .keyType(KeyType.RANGE)
+                                                .build())
+                                .projection(Projection.builder()
+                                        .projectionType(ProjectionType.KEYS_ONLY)
                                         .build())
-                        .projection(Projection.builder()
-                                .projectionType(ProjectionType.KEYS_ONLY)
-                                .build())
-                        .build()));
+                                .build(),
+
+                        // GSI 2: Outbox
+                        GlobalSecondaryIndex.builder()
+                                .indexName(CartTableSchemas.GSI2_OUTBOX_PENDING)
+                                .keySchema(
+                                        KeySchemaElement.builder()
+                                                .attributeName("GSI2PK")
+                                                .keyType(KeyType.HASH)
+                                                .build(),
+                                        KeySchemaElement.builder()
+                                                .attributeName("GSI2SK")
+                                                .keyType(KeyType.RANGE)
+                                                .build())
+                                .projection(Projection.builder()
+                                        .projectionType(ProjectionType.ALL)
+                                        .build())
+                                .build()));
 
         client.waiter().waitUntilTableExists(r -> r.tableName(TABLE));
     }

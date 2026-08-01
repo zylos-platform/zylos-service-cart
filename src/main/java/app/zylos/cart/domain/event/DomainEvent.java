@@ -7,10 +7,10 @@ import app.zylos.cart.domain.vo.CartId;
  * the cart identity, the version they produced, and only data intrinsic to the intent (e.g. the
  * affected SKU). The full event-carried state-transfer snapshot for the wire is assembled by the
  * outbox adapter from current aggregate state, keeping the domain free of serialization and envelope
- * concerns..
+ * concerns.
  */
 public sealed interface DomainEvent
-        permits CartLineAdded, CartLineQuantityChanged, CartLineRemoved, CartCleared, CartConverted {
+        permits CartLineAdded, CartLineQuantityChanged, CartLineRemoved, CartCleared, CartConverted, CartExpired {
 
     CartId cartId();
 

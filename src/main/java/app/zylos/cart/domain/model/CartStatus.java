@@ -1,9 +1,6 @@
 package app.zylos.cart.domain.model;
 
-import java.util.EnumMap;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import app.zylos.cart.domain.exception.CartClosedException;
 
@@ -24,20 +21,20 @@ public enum CartStatus {
     CONVERTED,
     MERGED;
 
-    private static final Map<CartStatus, Set<CartStatus>> ALLOWED_TARGETS = new EnumMap<>(CartStatus.class);
-
-    static {
-        ALLOWED_TARGETS.put(ACTIVE, Set.of(CONVERTED, MERGED));
-        ALLOWED_TARGETS.put(CONVERTED, Set.of());
-        ALLOWED_TARGETS.put(MERGED, Set.of());
-    }
-
     public boolean canTransitionTo(CartStatus target) {
-        return ALLOWED_TARGETS.getOrDefault(this, Set.of()).contains(target);
+        Objects.requireNonNull(target, "target must not be null");
+
+        return switch (this) {
+            case ACTIVE -> target == CONVERTED || target == MERGED;
+            case CONVERTED, MERGED -> false;
+        };
     }
 
     public boolean isTerminal() {
-        return ALLOWED_TARGETS.getOrDefault(this, Set.of()).isEmpty();
+        return switch (this) {
+            case ACTIVE -> false;
+            case CONVERTED, MERGED -> true;
+        };
     }
 
     public void ensureCanTransitionTo(CartStatus target) {

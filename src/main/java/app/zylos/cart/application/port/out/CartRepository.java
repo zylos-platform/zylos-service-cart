@@ -22,4 +22,8 @@ public interface CartRepository {
     Optional<Cart> findById(CartId cartId);
 
     Optional<Cart> findActiveByOwner(CartOwner owner);
+
+    boolean expire(Cart cart);
+
+    void moveToDeadLetter(CartId cartId);
 }

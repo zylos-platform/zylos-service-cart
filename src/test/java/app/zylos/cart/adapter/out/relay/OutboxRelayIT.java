@@ -33,6 +33,9 @@ import app.zylos.cart.adapter.out.persistence.dynamodb.CartOutboxRecordFactory;
 import app.zylos.cart.adapter.out.persistence.dynamodb.CartTableSchemas;
 import app.zylos.cart.adapter.out.persistence.dynamodb.DynamoCartRepository;
 import app.zylos.cart.adapter.out.persistence.dynamodb.OutboxRecordItem;
+import app.zylos.cart.config.ZylosCartExpiryProperties;
+import app.zylos.cart.config.ZylosCartOutboxProperties;
+import app.zylos.cart.config.ZylosCartServiceProperties;
 import app.zylos.cart.domain.model.Cart;
 import app.zylos.cart.domain.model.CartOwner.CustomerOwner;
 import app.zylos.cart.domain.vo.*;
@@ -122,7 +125,7 @@ class OutboxRelayIT {
     }
 
     private static int shardOf(Cart cart) {
-        return Math.floorMod(cart.id().value().toString().hashCode(), CartOutboxRecordFactory.OUTBOX_SHARDS);
+        return Math.floorMod(cart.id().value().toString().hashCode(), 16);
     }
 
     private static CartEvent decode(String topic, byte[] value) {
@@ -195,11 +198,11 @@ class OutboxRelayIT {
                                 .attributeType(ScalarAttributeType.S)
                                 .build(),
                         AttributeDefinition.builder()
-                                .attributeName("GSI3PK")
+                                .attributeName("GSI2PK")
                                 .attributeType(ScalarAttributeType.S)
                                 .build(),
                         AttributeDefinition.builder()
-                                .attributeName("GSI3SK")
+                                .attributeName("GSI2SK")
                                 .attributeType(ScalarAttributeType.S)
                                 .build())
                 .keySchema(
@@ -212,14 +215,14 @@ class OutboxRelayIT {
                                 .keyType(KeyType.RANGE)
                                 .build())
                 .globalSecondaryIndexes(GlobalSecondaryIndex.builder()
-                        .indexName(CartTableSchemas.GSI3_OUTBOX_PENDING)
+                        .indexName(CartTableSchemas.GSI2_OUTBOX_PENDING)
                         .keySchema(
                                 KeySchemaElement.builder()
-                                        .attributeName("GSI3PK")
+                                        .attributeName("GSI2PK")
                                         .keyType(KeyType.HASH)
                                         .build(),
                                 KeySchemaElement.builder()
-                                        .attributeName("GSI3SK")
+                                        .attributeName("GSI2SK")
                                         .keyType(KeyType.RANGE)
                                         .build())
                         // ALL: the relay needs the payload; KEYS_ONLY would force a base-table
@@ -233,22 +236,34 @@ class OutboxRelayIT {
 
     @BeforeEach
     void setUp() {
-        outboxFactory = new CartOutboxRecordFactory("zylos-service-cart", "test", () -> "corr-it");
-        repository = new DynamoCartRepository(enhanced, outboxFactory, TABLE);
+        outboxFactory = new CartOutboxRecordFactory(
+                new ZylosCartServiceProperties("zylos-service-cart", "0.0.0"),
+                new ZylosCartOutboxProperties(16, 16),
+                () -> "corr-it");
+        repository = new DynamoCartRepository(
+                dynamoClient,
+                enhanced,
+                outboxFactory,
+                new ZylosDynamodbProperties(TABLE, "test-endpoint"),
+                new ZylosCartExpiryProperties(8, 8));
         store = new OutboxStore(
                 dynamoClient, enhanced, asyncClient, new ZylosDynamodbProperties(TABLE, "test-endpoint"));
 
-        KafkaAvroSerializer serializer = new KafkaAvroSerializer(
+        var serializer = new KafkaAvroSerializer(
                 schemaRegistry, Map.of(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, SR_URL));
 
-        KafkaProperties kafkaProps = new KafkaProperties();
+        var kafkaProps = new KafkaProperties();
         kafkaProps.setBootstrapServers(List.of(kafka.getBootstrapServers()));
         producers = new ShardProducerRegistry(kafkaProps, defaultCartProperties());
 
-        CartEventPublisher publisher =
+        var publisher =
                 new CartEventPublisher(producers, serializer, defaultCartProperties(), new SimpleMeterRegistry());
-
-        relay = new OutboxRelay(store, publisher, defaultCartProperties(), new SimpleMeterRegistry());
+        relay = new OutboxRelay(
+                store,
+                publisher,
+                defaultCartProperties(),
+                new ZylosCartOutboxProperties(16, 16),
+                new SimpleMeterRegistry());
         createTable();
     }
 
@@ -313,8 +328,8 @@ class OutboxRelayIT {
         // The item survives (no delete -> no deleted-item accumulation in the hot partition) ...
         assertThat(outboxItems).singleElement().satisfies(item -> {
             assertThat(item.status()).isNull();
-            assertThat(item.gsi3pk()).isNull();
-            assertThat(item.gsi3sk()).isNull();
+            assertThat(item.gsi2pk()).isNull();
+            assertThat(item.gsi2sk()).isNull();
             assertThat(item.expiresAt()).isNotNull(); // TTL now owns cleanup
             assertThat(item.payload().asByteArray()).isNotEmpty();
         });
@@ -348,8 +363,8 @@ class OutboxRelayIT {
 
         assertThat(pending).singleElement().satisfies(item -> {
             assertThat(item.status()).isEqualTo("PENDING");
-            assertThat(item.gsi3pk()).isEqualTo("PENDING#" + item.shardId());
-            assertThat(item.gsi3sk()).isEqualTo(item.outboxId());
+            assertThat(item.gsi2pk()).isEqualTo("PENDING#" + item.shardId());
+            assertThat(item.gsi2sk()).isEqualTo(item.outboxId());
             assertThat(item.expiresAt()).isNull();
         });
     }
@@ -375,8 +390,8 @@ class OutboxRelayIT {
                 .occurredAt(Instant.now())
                 .terminal(false)
                 .payload(software.amazon.awssdk.core.SdkBytes.fromUtf8String("not-avro"))
-                .gsi3pk("PENDING#" + shard)
-                .gsi3sk("00000000-0000-7000-8000-000000000000")
+                .gsi2pk("PENDING#" + shard)
+                .gsi2sk("00000000-0000-7000-8000-000000000000")
                 .status("PENDING")
                 .expiresAt(null)
                 .build();
