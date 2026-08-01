@@ -10,7 +10,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import app.zylos.cart.adapter.out.relay.ZylosDynamodbProperties;
 import app.zylos.cart.application.port.out.OptimisticConcurrencyException;
+import app.zylos.cart.config.ZylosCartExpiryProperties;
+import app.zylos.cart.config.ZylosCartOutboxProperties;
+import app.zylos.cart.config.ZylosCartServiceProperties;
 import app.zylos.cart.domain.model.Cart;
 import app.zylos.cart.domain.model.CartOwner.CustomerOwner;
 import app.zylos.cart.domain.vo.*;
@@ -41,12 +45,19 @@ class DynamoCartRepositoryIT extends AbstractCartTableIT {
 
     @BeforeEach
     void setUpRepository() {
-        CartOutboxRecordFactory outboxFactory =
-                new CartOutboxRecordFactory("zylos-service-cart", "test", () -> "corr-123");
+        var outboxFactory = new CartOutboxRecordFactory(
+                new ZylosCartServiceProperties("zylos-service-cart", "0.0.0"),
+                new ZylosCartOutboxProperties(16, 16),
+                () -> "corr-123");
 
-        repository = new DynamoCartRepository(enhancedClient, outboxFactory, TABLE);
-        cartTable = enhancedClient.table(TABLE, CartTableSchemas.CART);
-        outboxTable = enhancedClient.table(TABLE, CartTableSchemas.OUTBOX);
+        this.repository = new DynamoCartRepository(
+                client,
+                enhancedClient,
+                outboxFactory,
+                new ZylosDynamodbProperties(TABLE, "test-endpoint"),
+                new ZylosCartExpiryProperties(8, 8));
+        this.cartTable = enhancedClient.table(TABLE, CartTableSchemas.CART);
+        this.outboxTable = enhancedClient.table(TABLE, CartTableSchemas.OUTBOX);
     }
 
     @Test

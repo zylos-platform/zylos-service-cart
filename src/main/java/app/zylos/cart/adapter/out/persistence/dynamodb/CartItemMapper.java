@@ -24,23 +24,31 @@ public final class CartItemMapper {
 
     private static final String TYPE_CUSTOMER = "CUSTOMER";
     private static final String TYPE_GUEST = "GUEST";
-    public static final int EXPIRY_SHARDS = 8;
+    private static final String PREFIX_CART_PK = "CART#";
+    private static final String PREFIX_EXPIRY_PK = "EXP#";
 
     private CartItemMapper() {}
 
     static String cartPk(CartId cartId) {
-        return "CART#" + cartId.value();
+        return PREFIX_CART_PK + cartId.value();
     }
 
-    public static String expiryPartition(int shard) {
-        return "EXP#" + shard;
+    static int shardFor(String cartId, int shard) {
+        return Math.floorMod(cartId.hashCode(), shard);
     }
 
-    static int shardFor(String cartId) {
-        return Math.floorMod(cartId.hashCode(), EXPIRY_SHARDS);
+    public static String expiryPk(int shard) {
+        return PREFIX_EXPIRY_PK + shard;
     }
 
-    static CartItem toItem(Cart cart, Instant now) {
+    public static CartId parseIdFromPk(@Nullable String pk) {
+        if (pk != null && pk.startsWith(PREFIX_CART_PK)) {
+            return CartId.of(pk.substring(PREFIX_CART_PK.length()));
+        }
+        throw new IllegalArgumentException("Malformed DynamoDB Partition Key: " + pk);
+    }
+
+    static CartItem toItem(Cart cart, Instant now, int shard) {
         String pk = cartPk(cart.id());
 
         String ownerType = cart.owner() instanceof CustomerOwner ? TYPE_CUSTOMER : TYPE_GUEST;
@@ -51,6 +59,8 @@ public final class CartItemMapper {
 
         long expiresAt = now.plus(ttl).getEpochSecond();
         String cartId = cart.id().value().toString();
+        Currency cartCurrency = cart.currency();
+        CartId mergedIntoCartId = cart.mergedIntoCartId();
 
         return CartItem.builder()
                 .pk(pk)
@@ -59,17 +69,17 @@ public final class CartItemMapper {
                 .ownerType(ownerType)
                 .ownerId(cart.owner().subjectId())
                 .status(cart.status().name())
-                .currency(cart.currency() == null ? null : cart.currency().getCurrencyCode())
+                .currency(cartCurrency == null ? null : cartCurrency.getCurrencyCode())
                 .lines(lineItems)
                 .version(cart.version())
                 .createdAt(UuidUtil.getInstant(cart.id().value()))
                 .updatedAt(now)
                 .convertedOrderId(cart.convertedOrderId())
                 .mergedIntoCartId(
-                        cart.mergedIntoCartId() == null
+                        mergedIntoCartId == null
                                 ? null
-                                : cart.mergedIntoCartId().value().toString())
-                .gsi1pk(expiryPartition(shardFor(cartId)))
+                                : mergedIntoCartId.value().toString())
+                .gsi1pk(expiryPk(shardFor(cartId, shard)))
                 .gsi1sk(String.valueOf(expiresAt))
                 .expiresAt(expiresAt)
                 .build();
@@ -91,9 +101,10 @@ public final class CartItemMapper {
     public static Cart toDomain(CartItem item) {
         List<CartLine> lines = item.lines().stream().map(CartItemMapper::toLine).toList();
 
-        CartOwner owner =
-                TYPE_CUSTOMER.equals(item.ownerType()) ? new CustomerOwner(item.ownerId()) : new GuestOwner(item.ownerId());
-        String mergeId = item.mergedIntoCartId();
+        CartOwner owner = TYPE_CUSTOMER.equals(item.ownerType())
+                ? new CustomerOwner(item.ownerId())
+                : new GuestOwner(item.ownerId());
+        String mergedIntoCartId = item.mergedIntoCartId();
 
         return Cart.reconstitute(
                 CartId.of(item.cartId()),
@@ -102,7 +113,7 @@ public final class CartItemMapper {
                 item.currency() == null ? null : Currency.getInstance(item.currency()),
                 lines,
                 item.convertedOrderId(),
-                mergeId == null ? null : CartId.of(mergeId),
+                mergedIntoCartId == null ? null : CartId.of(mergedIntoCartId),
                 item.version());
     }
 

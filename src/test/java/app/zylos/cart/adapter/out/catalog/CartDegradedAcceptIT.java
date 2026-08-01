@@ -28,12 +28,12 @@ import app.zylos.cart.adapter.out.catalog.resilience.ResilientCatalogClient;
 import app.zylos.cart.adapter.out.persistence.dynamodb.CartOutboxRecordFactory;
 import app.zylos.cart.adapter.out.persistence.dynamodb.CartTableSchemas;
 import app.zylos.cart.adapter.out.persistence.dynamodb.DynamoCartRepository;
+import app.zylos.cart.adapter.out.relay.ZylosDynamodbProperties;
 import app.zylos.cart.adapter.out.security.OpaCartAuthorization;
 import app.zylos.cart.application.command.AddLineToCartCommand;
 import app.zylos.cart.application.port.out.OptimisticConcurrencyException;
 import app.zylos.cart.application.service.CartCommandService;
-import app.zylos.cart.config.ZylosCatalogCacheProperties;
-import app.zylos.cart.config.ZylosCatalogGrpcProperties;
+import app.zylos.cart.config.*;
 import app.zylos.cart.domain.model.Cart;
 import app.zylos.cart.domain.model.CartOwner;
 import app.zylos.cart.domain.vo.LineOrigin;
@@ -131,7 +131,7 @@ class CartDegradedAcceptIT {
                                 .keyType(KeyType.RANGE)
                                 .build())
                 .globalSecondaryIndexes(GlobalSecondaryIndex.builder()
-                        .indexName(CartTableSchemas.GSI3_OUTBOX_PENDING)
+                        .indexName(CartTableSchemas.GSI2_OUTBOX_PENDING)
                         .keySchema(
                                 KeySchemaElement.builder()
                                         .attributeName("GSI3PK")
@@ -199,8 +199,16 @@ class CartDegradedAcceptIT {
         cacheTemplate.getConnectionFactory().getConnection().serverCommands().flushAll();
 
         registry = new SimpleMeterRegistry();
+        var factory = new CartOutboxRecordFactory(
+                new ZylosCartServiceProperties("zylos-service-cart", "0.0.0"),
+                new ZylosCartOutboxProperties(16, 16),
+                () -> "corr-it");
         repository = new DynamoCartRepository(
-                enhanced, new CartOutboxRecordFactory("zylos-service-cart", "it", () -> "corr-it"), TABLE);
+                dynamoClient,
+                enhanced,
+                factory,
+                new ZylosDynamodbProperties(TABLE, "test-endpoint"),
+                new ZylosCartExpiryProperties(8, 8));
 
         GrpcCatalogClient grpc = new GrpcCatalogClient(
                 ProductServiceGrpc.newBlockingStub(channel), new ZylosCatalogGrpcProperties(2000, "s2s-id"));

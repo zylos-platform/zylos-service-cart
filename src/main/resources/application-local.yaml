@@ -1,0 +1,16 @@
+# Local development profile
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,reaper
+  tracing:
+    export:
+      otlp:
+        enabled: false
+      enabled: false
+  otlp:
+    metrics:
+      export:
+        enabled: false

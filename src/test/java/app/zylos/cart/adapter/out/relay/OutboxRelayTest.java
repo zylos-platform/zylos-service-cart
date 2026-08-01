@@ -18,6 +18,7 @@ import org.mockito.InOrder;
 import app.zylos.cart.adapter.out.persistence.dynamodb.OutboxRecordItem;
 import app.zylos.cart.adapter.out.relay.CartEventPublisher.BatchGuard;
 import app.zylos.cart.adapter.out.relay.CartEventPublisher.PendingEvent;
+import app.zylos.cart.config.ZylosCartOutboxProperties;
 import app.zylos.cart.config.ZylosCartProperties;
 import app.zylos.contracts.cart.v1.CartEvent;
 import app.zylos.contracts.cart.v1.CartOwner;
@@ -111,8 +112,8 @@ class OutboxRelayTest {
                 .cartId(cartId)
                 .occurredAt(Instant.now())
                 .terminal(terminal)
-                .gsi3pk("PENDING#" + SHARD)
-                .gsi3sk(outboxId)
+                .gsi2pk("PENDING#" + SHARD)
+                .gsi2sk(outboxId)
                 .status("PENDING")
                 .expiresAt(null); // pending records must never carry a TTL
     }
@@ -137,7 +138,8 @@ class OutboxRelayTest {
                 .batchSize(BATCH_SIZE)
                 .build();
 
-        relay = new OutboxRelay(store, publisher, props, new SimpleMeterRegistry());
+        relay = new OutboxRelay(
+                store, publisher, props, new ZylosCartOutboxProperties(16, 16), new SimpleMeterRegistry());
     }
 
     /**

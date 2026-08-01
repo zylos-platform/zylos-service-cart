@@ -1,0 +1,9 @@
+# application-dev.yml
+
+logging:
+  level:
+    root: INFO
+    app.zylos: DEBUG
+    org.apache.kafka: WARN
+    software.amazon.awssdk: WARN
+    io.lettuce.core: WARN

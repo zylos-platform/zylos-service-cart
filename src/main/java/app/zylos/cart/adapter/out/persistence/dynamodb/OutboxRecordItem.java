@@ -23,8 +23,8 @@ public record OutboxRecordItem(
         Instant occurredAt,
         boolean terminal,
         SdkBytes payload,
-        @Nullable String gsi3pk,
-        @Nullable String gsi3sk,
+        @Nullable String gsi2pk,
+        @Nullable String gsi2sk,
         @Nullable String status,
         @Nullable Long expiresAt) {
 
@@ -46,8 +46,8 @@ public record OutboxRecordItem(
         private Instant occurredAt;
         private boolean terminal;
         private SdkBytes payload;
-        private @Nullable String gsi3pk;
-        private @Nullable String gsi3sk;
+        private @Nullable String gsi2pk;
+        private @Nullable String gsi2sk;
         private @Nullable String status;
         private @Nullable Long expiresAt;
 
@@ -116,13 +116,13 @@ public record OutboxRecordItem(
             return this;
         }
 
-        public Builder gsi3pk(@Nullable String gsi3pk) {
-            this.gsi3pk = gsi3pk;
+        public Builder gsi2pk(@Nullable String gsi2pk) {
+            this.gsi2pk = gsi2pk;
             return this;
         }
 
-        public Builder gsi3sk(@Nullable String gsi3sk) {
-            this.gsi3sk = gsi3sk;
+        public Builder gsi2sk(@Nullable String gsi2sk) {
+            this.gsi2sk = gsi2sk;
             return this;
         }
 
@@ -151,8 +151,8 @@ public record OutboxRecordItem(
                     occurredAt,
                     terminal,
                     payload,
-                    gsi3pk,
-                    gsi3sk,
+                    gsi2pk,
+                    gsi2sk,
                     status,
                     expiresAt);
         }

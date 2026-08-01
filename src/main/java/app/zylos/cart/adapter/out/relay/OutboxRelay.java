@@ -16,8 +16,8 @@ import org.springframework.stereotype.Component;
 
 import com.github.f4b6a3.uuid.UuidCreator;
 
-import app.zylos.cart.adapter.out.persistence.dynamodb.CartOutboxRecordFactory;
 import app.zylos.cart.adapter.out.persistence.dynamodb.OutboxRecordItem;
+import app.zylos.cart.config.ZylosCartOutboxProperties;
 import app.zylos.cart.config.ZylosCartProperties;
 import app.zylos.contracts.cart.v1.CartEvent;
 
@@ -47,13 +47,14 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateItemResponse;
 public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
-    private static final int SHARDS = CartOutboxRecordFactory.OUTBOX_SHARDS;
 
     private final OutboxStore store;
     private final CartEventPublisher publisher;
     private final ZylosCartProperties cartProperties;
     private final String instanceId;
     private final int shardOffset;
+    private final int shards;
+
     private final Counter poisoned;
     private final Counter publishErrors;
     private final Counter fenced;
@@ -63,12 +64,15 @@ public class OutboxRelay {
             OutboxStore store,
             CartEventPublisher publisher,
             ZylosCartProperties cartProperties,
+            ZylosCartOutboxProperties outboxProperties,
             MeterRegistry registry) {
         this.store = store;
         this.publisher = publisher;
         this.cartProperties = cartProperties;
         this.instanceId = UuidCreator.getTimeOrderedEpoch().toString();
-        this.shardOffset = Math.floorMod(instanceId.hashCode(), SHARDS);
+        this.shards = outboxProperties.readShards();
+        this.shardOffset = Math.floorMod(instanceId.hashCode(), shards);
+
         this.poisoned = Counter.builder("zylos.cart.relay.poisoned")
                 .description("Undecodable outbox records moved to the DLQ")
                 .register(registry);
@@ -96,8 +100,8 @@ public class OutboxRelay {
      * One full pass over all shards this instance can claim.
      */
     public void drainOnce() {
-        for (int i = 0; i < SHARDS; i++) {
-            int shard = (shardOffset + i) % SHARDS;
+        for (int i = 0; i < shards; i++) {
+            int shard = (shardOffset + i) % shards;
 
             Optional<RelayLease> claimed = store.tryAcquireLease(
                     shard, instanceId, Duration.ofSeconds(cartProperties.relay().leaseTtlSeconds()), Instant.now());
